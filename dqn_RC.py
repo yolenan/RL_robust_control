@@ -26,7 +26,7 @@ from keras.models import Sequential
 # parameters for LSTM
 nb_lstm_outputs = 30  # 神经元个数
 nb_time_steps = 28  # 时间序列长度
-nb_input_vector = 1  # 输入序列
+nb_input_vector = 4  # 输入序列
 acc_bound = 10
 
 

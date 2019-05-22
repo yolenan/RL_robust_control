@@ -129,6 +129,7 @@ class DQNAgent:
         num_steps = 10 ** 6
 
         q_values = self.calc_q_values(state)
+
         if process == 'sampling':
             action = UniformRandomPolicy(len(q_values)).select_action()
         elif process == 'testing':
@@ -164,22 +165,22 @@ class DQNAgent:
           resets. Can help exploration.
         """
         # state = self.pre.process_state_for_memory(env.reset()) #函数内容是pass
-        state = env.reset()
+        state = env.reset()  # 获取初始状态
         tmp = 0
-        prev_action = 0
+        prev_action = np.zeros(4)  # 初始前操作
         states = [state]
-        state_ = -1  # ???
+        state_ = np.zeros(4)
         for i in range(num_iterations):
-            done = False
             # env.render()
             if max_episode_length and i > max_episode_length:
                 break
-            if state_ == -1:
-                action = np.random.random()
+            if state_.all() <= 0:
+                action = np.random.random(4)  # 初始状态产生随机权重
             else:
                 state_ = tf.squeeze(state_)
                 state_ = tf.reshape(state_, 1)
                 action = self.select_action(state_, process='testing')
+            print(action)
             # print('action', action)
             next_state, reward, done = env.step(action)
             if done:
@@ -188,14 +189,15 @@ class DQNAgent:
             # next_state = self.pre.process_state_for_memory(next_state)
             states.append(next_state)
             tmp += 1
-            if tmp >= 6:
-                # frames = states[-5:-1]
-                # frames2 = states[-4:]
-                # state_ = tf.concat([tf.expand_dims(i, 2) for i in frames], 2)
-                # next_state_ = tf.concat([tf.expand_dims(i, 2) for i in frames2], 2)
-                print(state_, next_state_)
-                self.mem.append(state_, prev_action, reward, next_state_, done)
-                states = states[-5:]
+            self.mem.append(state, prev_action, reward, next_state, done)
+            # if tmp >= 6:
+            #     # frames = states[-5:-1]
+            #     # frames2 = states[-4:]
+            #     # state_ = tf.concat([tf.expand_dims(i, 2) for i in frames], 2)
+            #     # next_state_ = tf.concat([tf.expand_dims(i, 2) for i in frames2], 2)
+            #     print(state, next_state)
+            #
+            #     states = states[-5:]
             prev_action = action
             if i % self.renew == 0 and i != 0:
                 self.net2 = self.net
@@ -210,8 +212,8 @@ class DQNAgent:
                                                                           samples.reward,
                                                                           samples.next_state,
                                                                           samples.done]
-                    state = tf.reshape(tf.squeeze(current_state), 4)
-                    next_state = tf.reshape((tf.squeeze(current_state)), 4)
+                    # state = tf.reshape(tf.squeeze(current_state), 4)
+                    # next_state = tf.reshape((tf.squeeze(current_state)), 4)
                     current_states.append(state)
                     target = reward
                     if not is_done:
@@ -262,15 +264,15 @@ class DQNAgent:
                     action = self.select_action(state_)
                 next_state, reward, done, _ = env.step(action)
                 if tmp < 6:
-                    next_state = self.pre.process_state_for_memory(next_state)
+                    # next_state = self.pre.process_state_for_memory(next_state)
                     states.append(next_state)
                     tmp += 1
                 if tmp >= 6:
-                    frames = states[-5:-1]
-                    frames2 = states[-4:]
-                    state_ = tf.concat([tf.expand_dims(i, 2) for i in frames], 2)
-                    next_state_ = tf.concat([tf.expand_dims(i, 2) for i in frames2], 2)
-                    self.mem.append(state_, prev_action, reward, next_state_, done)
+                    # frames = states[-5:-1]
+                    # frames2 = states[-4:]
+                    # state_ = tf.concat([tf.expand_dims(i, 2) for i in frames], 2)
+                    # next_state_ = tf.concat([tf.expand_dims(i, 2) for i in frames2], 2)
+                    self.mem.append(state, prev_action, reward, next_state, done)
                     states.append(state)
                     states = states[-5:]
                 prev_action = action
