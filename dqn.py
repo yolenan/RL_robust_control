@@ -177,10 +177,10 @@ class DQNAgent:
             if state_.all() <= 0:
                 action = np.random.random(4)  # 初始状态产生随机权重
             else:
-                state_ = tf.squeeze(state_)
-                state_ = tf.reshape(state_, 1)
+                # state_ = tf.squeeze(state_)
+                # state_ = tf.reshape(state_, 1)
                 action = self.select_action(state_, process='testing')
-            print(action)
+            # print(action)
             # print('action', action)
             next_state, reward, done = env.step(action)
             if done:
@@ -226,8 +226,9 @@ class DQNAgent:
                             # TODO
                         elif self.algorithm == 'DuelingDQN':
                             target = reward
-                    target_f = self.net.predict(state, steps=32)
-                    print(target_f)
+                    target_f = self.net.predict(state, steps=10)
+                    print(len(target_f))
+                    print(action)
                     target_f[action] = target
                     q_values.append(target_f)
                 # current_states = tf.reshape(current_states, 4)
