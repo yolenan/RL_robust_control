@@ -53,7 +53,7 @@ class DQNAgent:
                  num_burn_in,
                  train_freq,
                  batch_size,
-                 algorithm='DQN'):
+                 algorithm='DoubuleDQN'):
         self.net = q_network
         self.net2 = q_network2
         self.pre = preprocessor
@@ -226,11 +226,11 @@ class DQNAgent:
                             # TODO
                         elif self.algorithm == 'DuelingDQN':
                             target = reward
-
-                    target_f = self.net.predict(state, steps=32)[0]
+                    target_f = self.net.predict(state, steps=32)
+                    print(target_f)
                     target_f[action] = target
                     q_values.append(target_f)
-                current_states = tf.reshape(current_states, 4)
+                # current_states = tf.reshape(current_states, 4)
                 q_values = np.reshape((q_values), (-1, 6))
                 print(current_states.shape, q_values.shape)
                 self.net.fit(current_states, q_values, steps_per_epoch=self.batch_size)
@@ -250,7 +250,7 @@ class DQNAgent:
         """
         for i in range(num_episodes):
             total = 0
-            state = np.zeros((84, 84, 1))
+            state = np.zeros(4)
             tmp = 0
             prev_action = 0
             states = [state]

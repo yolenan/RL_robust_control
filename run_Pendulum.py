@@ -1,15 +1,14 @@
-from carfollowing_env import VehicleFollowingENV
+from DnsCarFollowENV2 import VehicleFollowingENV
 from RL_brain import DoubleDQN
 import numpy as np
 import matplotlib.pyplot as plt
 import tensorflow as tf
 
-
 env = VehicleFollowingENV()
 # env = env.unwrapped
 # env.seed(1)
 MEMORY_SIZE = 3000
-ACTION_SPACE = 1
+ACTION_SPACE = 4
 
 sess = tf.Session()
 with tf.variable_scope('Natural_DQN'):
@@ -34,25 +33,26 @@ def train(RL):
 
         action = RL.choose_action(observation)
 
-        f_action = action   # convert to [-2 ~ 2] float actions
+        f_action = action  # convert to [-2 ~ 2] float actions
         # print(f_action)
-        observation_, reward, done, info = env.step(np.array([f_action]))
+        observation_, reward, done = env.step(np.array([f_action]))
 
-        reward /= 10     # normalize to a range of (-1, 0). r = 0 when get upright
+        reward /= 10  # normalize to a range of (-1, 0). r = 0 when get upright
         # the Q target at upright state will be 0, because Q_target = r + gamma * Qmax(s', a') = 0 + gamma * 0
         # so when Q at this state is greater than 0, the agent overestimates the Q. Please refer to the final result.
 
         RL.store_transition(observation, action, reward, observation_)
 
-        if total_steps > MEMORY_SIZE:   # learning
+        if total_steps > MEMORY_SIZE:  # learning
             RL.learn()
 
-        if total_steps - MEMORY_SIZE > 20000:   # stop game
+        if total_steps - MEMORY_SIZE > 20000:  # stop game
             break
 
         observation = observation_
         total_steps += 1
     return RL.q
+
 
 q_natural = train(natural_DQN)
 q_double = train(double_DQN)

@@ -19,20 +19,22 @@ from dqn import DQNAgent
 # from gym.envs.atari import atari_env
 import core
 from keras.datasets import mnist
-from keras.layers import Dense, LSTM
+from keras.layers import Dense, LSTM, Embedding
 from keras.utils import to_categorical
 from keras.models import Sequential
 
 # parameters for LSTM
-nb_lstm_outputs = 30  # 神经元个数
-nb_time_steps = 28  # 时间序列长度
+nb_lstm_outputs = 32  # 神经元个数
+nb_time_steps = 1  # 时间序列长度
 nb_input_vector = 4  # 输入序列
 acc_bound = 10
 
 
 def create_lstm_model(nb_time_steps, nb_input_vector, num_actions):
     model = Sequential()
-    model.add(LSTM(units=nb_lstm_outputs, input_shape=(nb_time_steps, nb_input_vector)))
+    model.add(Embedding(input_dim=nb_input_vector, output_dim=32))
+    # model.add(LSTM(units=nb_lstm_outputs, input_shape=(nb_time_steps, nb_input_vector)))
+    model.add(LSTM(nb_lstm_outputs))
     model.add(Dense(num_actions, activation='tanh'))
     return model
 
