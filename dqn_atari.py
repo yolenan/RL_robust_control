@@ -11,6 +11,7 @@ from keras.layers import (Activation, Convolution2D, Dense, Flatten, Input,
 from keras.models import Model, Sequential
 from keras.optimizers import Adam
 import gym
+from carfollowing_env import VehicleFollowingENV
 
 # import deeprl_hw2 as tfrl
 from dqn import DQNAgent
@@ -81,57 +82,60 @@ def create_lstm_model(nb_time_steps, nb_input_vector, num_actions):
 #     return model
 
 
-def get_output_folder(parent_dir, env_name):
-    """Return save folder.
-
-    Assumes folders in the parent_dir have suffix -run{run
-    number}. Finds the highest run number and sets the output folder
-    to that number + 1. This is just convenient so that if you run the
-    same script multiple times tensorboard can plot all of the results
-    on the same plots with different names.
-
-    Parameters
-    ----------
-    parent_dir: str
-      Path of the directory containing all experiment runs.
-
-    Returns
-    -------
-    parent_dir/run_dir
-      Path to this run's save directory.
-    """
-    os.makedirs(parent_dir, exist_ok=True)
-    experiment_id = 0
-    for folder_name in os.listdir(parent_dir):
-        if not os.path.isdir(os.path.join(parent_dir, folder_name)):
-            continue
-        try:
-            folder_name = int(folder_name.split('-run')[-1])
-            if folder_name > experiment_id:
-                experiment_id = folder_name
-        except:
-            pass
-    experiment_id += 1
-
-    parent_dir = os.path.join(parent_dir, env_name)
-    parent_dir = parent_dir + '-run{}'.format(experiment_id)
-    return parent_dir
+# def get_output_folder(parent_dir, env_name):
+#     """Return save folder.
+#
+#     Assumes folders in the parent_dir have suffix -run{run
+#     number}. Finds the highest run number and sets the output folder
+#     to that number + 1. This is just convenient so that if you run the
+#     same script multiple times tensorboard can plot all of the results
+#     on the same plots with different names.
+#
+#     Parameters
+#     ----------
+#     parent_dir: str
+#       Path of the directory containing all experiment runs.
+#
+#     Returns
+#     -------
+#     parent_dir/run_dir
+#       Path to this run's save directory.
+#     """
+#     os.makedirs(parent_dir, exist_ok=True)
+#     experiment_id = 0
+#     for folder_name in os.listdir(parent_dir):
+#         if not os.path.isdir(os.path.join(parent_dir, folder_name)):
+#             continue
+#         try:
+#             folder_name = int(folder_name.split('-run')[-1])
+#             if folder_name > experiment_id:
+#                 experiment_id = folder_name
+#         except:
+#             pass
+#     experiment_id += 1
+#
+#     parent_dir = os.path.join(parent_dir, env_name)
+#     parent_dir = parent_dir + '-run{}'.format(experiment_id)
+#     return parent_dir
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Run DQN on Atari SpaceInvaders')
-    parser.add_argument('--env', default='SpaceInvaders-v0', help='Atari env name')
-    parser.add_argument(
-        '-o', '--output', default='SpaceInvaders-v0', help='Directory to save data to')
-    parser.add_argument('--seed', default=0, type=int, help='Random seed')
-    # parser.add_argument('--input_shape', default=(84, 84, 4), type=tuple, help='Size of each frame')
+    # parser = argparse.ArgumentParser(description='Run DQN on Atari SpaceInvaders')
+    # parser.add_argument('--env', default='SpaceInvaders-v0', help='Atari env name')
+    # parser.add_argument(
+    #     '-o', '--output', default='SpaceInvaders-v0', help='Directory to save data to')
+    # parser.add_argument('--seed', default=0, type=int, help='Random seed')
+    # # parser.add_argument('--input_shape', default=(84, 84, 4), type=tuple, help='Size of each frame')
+    #
+    # args = parser.parse_args()
+    #
+    # args.output = get_output_folder(args.output, args.env)
 
-    args = parser.parse_args()
-
-    args.output = get_output_folder(args.output, args.env)
-
-    q_network = create_lstm_model(nb_time_steps, nb_input_vector, num_actions=gym.make(args.env).action_space.n)
-    agent = DQNAgent(q_network=q_network,
+    #vehicle_network
+    veh_network = create_lstm_model(nb_time_steps, nb_input_vector, num_actions=g1)
+    #Attacker network
+    att_network = create_lstm_model(nb_time_steps, nb_input_vector, num_actions=gym.make(args.env).action_space.n)
+    veh_agent = DQNAgent(q_network=veh_network,
                      preprocessor=core.Preprocessor(),
                      memory=core.ReplayMemory(),
                      policy=1,
@@ -140,11 +144,21 @@ def main():
                      num_burn_in=100,
                      train_freq=20,
                      batch_size=32)
-    agent.compile('Adam', 'mse')
-    env = gym.make(args.env)
+    att_agent = DQNAgent(q_network=att_network,
+                         preprocessor=core.Preprocessor(),
+                         memory=core.ReplayMemory(),
+                         policy=1,
+                         gamma=0.1,
+                         target_update_freq=100,
+                         num_burn_in=100,
+                         train_freq=20,
+                         batch_size=32)
+    veh_agent.compile('Adam', 'mse')
+    att_agent.compile('Adam', 'mse')
+    env = VehicleFollowingENV
     for i_episode in range(20):
         agent.fit(env, 10 ** 6)
-    env.close()
+    # env.close()
     model_json = q_network.to_json()
     with open("model.json", "w") as json_file:
         json_file.write(model_json)

@@ -124,13 +124,14 @@ class Preprocessor:
           modified in any manner.
 
         """
-        state_gray = tf.image.rgb_to_grayscale(state)
-        state_resize = tf.image.resize_images(state_gray, [110, 84])
-        state_square = state_resize[26:110, 0:84]  # 截取下面部分, 除去计分板
-        with tf.Session() as sess:
-            processed_state = state_square.eval()
+        # state_gray = tf.image.rgb_to_grayscale(state)
+        # state_resize = tf.image.resize_images(state_gray, [110, 84])
+        # state_square = state_resize[26:110, 0:84]  # 截取下面部分, 除去计分板
+        # with tf.Session() as sess:
+        #     processed_state = state_square.eval()
 
-        return processed_state.astype('uint8')  # 84*84
+        # return processed_state.astype('uint8')  # 84*84
+        return state
 
     def process_batch(self, samples):
         """Process batch of samples.

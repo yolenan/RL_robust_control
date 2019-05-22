@@ -1,0 +1,110 @@
+import numpy as np
+
+SAMPLE_INTERVAL = 0.1
+SPEED_LIMIT = 20
+ACC_MODE = 0
+UPPER_BOUND = 100
+ATTACKER_LIMIT = [1, 1, 1, 1]  # 攻击阈值
+
+
+class VehicleFollowingENV(object):
+    def __init__(self):
+        '''
+        :param
+        d0:     初始车距, 范围在10m~30m间
+        d:      当前车距
+        v_Head: 前车速度, 范围在0-20m/s之间
+        v:      自车速度, 初始值等于前车速度
+        v_cal    前车测量速度
+        sample_interval: 采样时间, 单位: s
+        a_head: 前车加速度
+        '''
+        self.sensor_error = [0.1, 0.1, 0.1, 0.1]  # 传感器误差高斯噪声
+        self.lam = 1  # 控制量
+        self.d0 = np.random.randint(10, 30)  # 初始距离
+        self.d = self.d0  # 实时距离
+        self.v_head = np.random.random() * SPEED_LIMIT  # 前车速度
+        self.v = self.v_head  # 自车速度
+        self.v_cal = 0
+        self.sample_interval = SAMPLE_INTERVAL  # 采样间隔
+        self.a_head = 0  # 前车加速度
+        self.action_car = 0  # 自身加速度
+        self.step_number = 0
+
+    def reset(self):
+        '''
+        初始化环境, 返回未经攻击的前车速度的观测值和自身速度
+        :return
+        v_head: 前车速度
+        v:      自车速度
+        '''
+        return [self.v_head] * 4 + np.zeros(4)
+
+    def control(self, action_weight=np.ones(4), action_attacker=np.zeros(4)):
+        '''
+        :param
+        action_weight:权重
+        action_attacker:攻击值
+
+        :return:
+        action_car  车辆速度
+        '''
+        # 传感器随机误差
+        SSerror = np.random.randn(4) * self.sensor_error
+        # 前车的估计车速 公式7
+        self.v_cal = self.v_head + np.sum(action_weight * (SSerror + action_attacker))
+
+        # 控制结果 公式1
+        self.action_car = self.lam * (self.v_cal - self.v)
+
+    def step(self, action_weight=np.ones(4), action_attacker=np.zeros(4)):  # =np.ones(4), action_attacker=np.zeros(4)):
+        '''
+        环境的步进, 输入攻击者和自车的权重动作，通过控制器, 返回新的Reward和观测值
+        :param
+        action_car: 车辆的加速度
+        action_attacker: 插入的假数据
+
+        :return
+        next_state: 经过伪造的数据
+        reward:     距离与安全距离的差平方
+        is_done:    是否发生碰撞
+        '''
+        # 更新步数
+        self.step_number = self.step_number + 1
+        # 更新控制
+        self.control(action_weight, action_attacker)
+        # 前车行驶距离(保留没有变)
+        s_head = self.v_head * self.sample_interval + 0.5 * self.a_head * self.sample_interval * self.sample_interval
+        # 自车行驶距离（保留没有变）
+        s_self = self.v * self.sample_interval + 0.5 * self.action_car * self.sample_interval * self.sample_interval
+        # 新的车距（保留没有变）
+        self.d = self.d + s_head - s_self
+        # 更新车速
+        self.v_head = self.v_head + self.a_head * self.sample_interval
+        self.v = self.v + self.action_car * self.sample_interval
+        # 返回结果
+        if self.d <= 0 or self.d >= UPPER_BOUND:
+            is_done = True
+        else:
+            is_done = False
+        # reward 用
+        s_ = [self.v_head] * 4 + action_attacker
+        reward = (self.d - self.d0) ** 2
+        return s_, reward, is_done
+
+
+if __name__ == '__main__':
+    env = VehicleFollowingENV()
+
+    v_observe = env.reset()
+    done = False
+
+    i = 0
+    while (not done and i < 1000):
+        i = i + 1
+        weight = np.random.random(4)
+        weight = weight / weight.sum()
+        attack = np.random.randn(4) + 0.1
+
+        s_, reward, done = env.step(weight)
+        print('R({:d}):{:<6.2f},  Real Distance:{:.2f} m.   '.format(i, reward, env.d))

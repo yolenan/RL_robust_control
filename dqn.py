@@ -163,12 +163,14 @@ class DQNAgent:
           How long a single episode should last before the agent
           resets. Can help exploration.
         """
-        state = self.pre.process_state_for_memory(env.reset()) #函数内容是pass
+        # state = self.pre.process_state_for_memory(env.reset()) #函数内容是pass
+        state = env.reset()
         tmp = 0
         prev_action = 0
         states = [state]
-        state_ = -1  #???
+        state_ = -1  # ???
         for i in range(num_iterations):
+            done = False
             # env.render()
             if max_episode_length and i > max_episode_length:
                 break
@@ -179,18 +181,19 @@ class DQNAgent:
                 state_ = tf.reshape(state_, 1)
                 action = self.select_action(state_, process='testing')
             # print('action', action)
-            next_state, reward, done, _ = env.step(action)
+            next_state, reward, done = env.step(action)
             if done:
                 print("Episode finished after {} timesteps".format(i + 1))
                 break
-            next_state = self.pre.process_state_for_memory(next_state)
+            # next_state = self.pre.process_state_for_memory(next_state)
             states.append(next_state)
             tmp += 1
             if tmp >= 6:
-                frames = states[-5:-1]
-                frames2 = states[-4:]
-                state_ = tf.concat([tf.expand_dims(i, 2) for i in frames], 2)
-                next_state_ = tf.concat([tf.expand_dims(i, 2) for i in frames2], 2)
+                # frames = states[-5:-1]
+                # frames2 = states[-4:]
+                # state_ = tf.concat([tf.expand_dims(i, 2) for i in frames], 2)
+                # next_state_ = tf.concat([tf.expand_dims(i, 2) for i in frames2], 2)
+                print(state_, next_state_)
                 self.mem.append(state_, prev_action, reward, next_state_, done)
                 states = states[-5:]
             prev_action = action
@@ -207,8 +210,8 @@ class DQNAgent:
                                                                           samples.reward,
                                                                           samples.next_state,
                                                                           samples.done]
-                    state = tf.reshape(tf.squeeze(current_state), (1, 84, 84, 4))
-                    next_state = tf.reshape((tf.squeeze(current_state)), (1, 84, 84, 4))
+                    state = tf.reshape(tf.squeeze(current_state), 4)
+                    next_state = tf.reshape((tf.squeeze(current_state)), 4)
                     current_states.append(state)
                     target = reward
                     if not is_done:
@@ -225,7 +228,7 @@ class DQNAgent:
                     target_f = self.net.predict(state, steps=32)[0]
                     target_f[action] = target
                     q_values.append(target_f)
-                current_states = tf.reshape(current_states, (-1, 84, 84, 4))
+                current_states = tf.reshape(current_states, 4)
                 q_values = np.reshape((q_values), (-1, 6))
                 print(current_states.shape, q_values.shape)
                 self.net.fit(current_states, q_values, steps_per_epoch=self.batch_size)
