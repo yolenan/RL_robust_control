@@ -4,8 +4,16 @@ import random
 import numpy as np
 from policy import GreedyEpsilonPolicy, LinearDecayGreedyEpsilonPolicy, UniformRandomPolicy
 from core import ReplayMemory, Preprocessor
-import tensorflow as tf
+from DnsCarFollowENV2 import VehicleFollowingENV
+from copy import deepcopy
+from dqn_RC import create_SL_model
+from keras.metrics import categorical_crossentropy, mse
 
+# 用于创建SL网络的输入输出维度
+DIM_STATES = 4
+NUM_ACTIONS = 32
+RC = 0  # 纳什均衡的合作-竞争参数 R1 + R2 = RC
+ETA = 0.5  # NFSP选择最优策略和平均策略的概率
 
 class DQNAgent:
     """Class implementing DQN.
@@ -46,18 +54,21 @@ class DQNAgent:
                  q_network,
                  q_network2,
                  preprocessor: Preprocessor(),
-                 memory: ReplayMemory(),
+                 RLmemory: ReplayMemory(),
+                 SLmemory: ReplayMemory(),
                  policy,
                  gamma,
                  target_update_freq,
                  num_burn_in,
                  train_freq,
                  batch_size,
-                 algorithm='DoubuleDQN'):
+                 algorithm='DoubuleDQN',
+                 render=False):
         self.net = q_network
         self.net2 = q_network2
         self.pre = preprocessor
-        self.mem = memory
+        self.rl_mem = RLmemory
+        self.sl_mem = SLmemory
         self.policy = policy
         self.gamma = gamma
         self.renew = target_update_freq
@@ -65,6 +76,7 @@ class DQNAgent:
         self.train_freq = train_freq
         self.batch_size = batch_size
         self.algorithm = algorithm
+        self.render = render
 
     def compile(self, optimizer, loss_func):
         """Setup all of the TF graph variables/ops.
@@ -84,8 +96,9 @@ class DQNAgent:
         optimizer.
         """
         self.net.compile(optimizer=optimizer, loss=loss_func)
+        self.net2.compile(optimizer=optimizer, loss=loss_func)
 
-    def calc_q_values(self, state):
+    def calc_q_values(self, state, net):
         """Given a state (or batch of states) calculate the Q-values.
 
         Basically run your network on these states.
@@ -97,10 +110,10 @@ class DQNAgent:
         # with tf.Session() as f:
         #     print(state.eval())
 
-        q_value = self.net.predict(state, steps=32)
+        q_value = net.predict(state, steps=32)
         return q_value
 
-    def select_action(self, state, process='training'):
+    def select_action(self, state, net, process='training'):
         """Select the action based on the current state.
 
         You will probably want to vary your behavior here based on
@@ -128,7 +141,7 @@ class DQNAgent:
         end_value = 0.1
         num_steps = 10 ** 6
 
-        q_values = self.calc_q_values(state)
+        q_values = self.calc_q_values(state, net)
 
         if process == 'sampling':
             action = UniformRandomPolicy(len(q_values)).select_action()
@@ -154,7 +167,7 @@ class DQNAgent:
 
         Parameters
         ----------
-        env: gym.Env
+        env: VehicleFollowingEnv
           This is your Atari environment. You should wrap the
           environment using the wrap_atari_env function in the
           utils.py
@@ -227,14 +240,125 @@ class DQNAgent:
                         elif self.algorithm == 'DuelingDQN':
                             target = reward
                     target_f = self.net.predict(state, steps=10)
-                    # print(len(target_f))
-                    # print(action)
+                    print(len(target_f))
+                    print(action)
                     target_f[action] = target
                     q_values.append(target_f)
                 # current_states = tf.reshape(current_states, 4)
                 q_values = np.reshape((q_values), (-1, 6))
                 print(current_states.shape, q_values.shape)
                 self.net.fit(current_states, q_values, steps_per_epoch=self.batch_size)
+
+    def fit_nash(self, env: VehicleFollowingENV, num_iterations, episode, total_step, max_episode_length=None):
+        """
+        Fit with Nash Equilibrium
+        """
+        # RL network: LSTM
+        self.p1_net = self.net  # target network
+        self.p1_net2 = self.net2
+
+        self.p2_net = deepcopy(self.net)
+        self.p2_net2 = deepcopy(self.net2)
+
+        # SL network: NN
+        self.p1_policy = create_SL_model(DIM_STATES, NUM_ACTIONS)
+        self.p2_policy = create_SL_model(DIM_STATES, NUM_ACTIONS)
+
+        self.p1_policy.compile('Adam', categorical_crossentropy)
+        self.p2_policy.compile('Adam', mse)
+
+        # ReplayMemory
+        self.p1_RL_mem = ReplayMemory(max_size=100000)
+        self.p2_RL_mem = ReplayMemory(max_size=100000)
+        self.p1_SL_mem = ReplayMemory(max_size=100000)
+        self.p2_SL_mem = ReplayMemory(max_size=100000)
+
+        # MainLoop
+        state = env.reset()
+        total_reward = 0
+        done = False
+
+        for i in num_iterations:
+            total_step += 1
+
+            # if self.render:
+            #     env.render()
+            if max_episode_length and i > max_episode_length:
+                break
+
+            if np.random.random() < ETA:
+                best_response = True
+            else:
+                best_response = False
+
+            if best_response:
+                p1_action = self.select_action(state, net=self.p1_net)
+                p2_action = self.select_action(state, net=self.p2_net)
+            else:
+                p1_action = self.select_action(state, net=self.p1_policy)
+                p2_action = self.select_action(state, net=self.p2_policy)
+
+            next_state, reward, done = env.step(action_weight=p1_action, action_attacker=p2_action)
+
+            self.p1_RL_mem.append((state, p1_action, RC-reward, next_state, done))
+            self.p2_RL_mem.append((state, p2_action, reward, next_state, done))
+            self.p1_SL_mem.append((state, p1_action))
+            self.p2_SL_mem.append((state, p2_action))
+
+            total_reward += reward
+
+            if done:
+                with open(self.algorithm + 'total_reward.txt', 'a') as f:
+                    f.write('Episode ({}), reward: ({})\n'.format(episode, total_reward))
+                print("Episode finished after {} time steps, total_reward is {}...".format(i, total_reward))
+                break
+
+            if total_step % self.renew == 0 and total_step != 0:
+                self.p1_net2 = self.p1_net
+                self.p2_net2 = self.p2_net
+
+            # if total_step % 100000 == 0:
+            #     self.save(total_step)
+
+            if total_step >= self.burn_in and total_step % self.train_freq == 0:
+                batches = min(self.batch_size, len(self.p1_RL_mem))
+                p1_states, p1_actions, p1_q_values = self.sample_from_Replay_Memory(batches, self.p1_RL_mem, self.p1_net)
+                p2_states, p2_actions, p2_q_values = self.sample_from_Replay_Memory(batches, self.p2_RL_mem, self.p2_net)
+
+                self.p1_net.fit(p1_states, p1_q_values)
+                self.p2_net.fit(p2_states, p2_q_values)
+                self.p1_policy.fit(p1_states, p1_actions)
+                self.p2_policy.fit(p2_states, p2_actions)
+
+            state = next_state
+        return total_step, done
+
+
+    def sample_from_Replay_Memory(self, batches, ReplayMemory, Net):
+        current_states = []
+        actions = []
+        q_values = []
+
+        for samples in ReplayMemory.sample(batches):
+            state, action, reward, next_state, is_done = [samples.state,
+                                                          samples.action,
+                                                          samples.reward,
+                                                          samples.next_state,
+                                                          samples.done]
+
+            next_state = np.expand_dims(np.asarray(next_state).astype(np.float64), axis=0)
+
+            current_states.append(state)
+            actions.append(action)
+            target = reward
+            if not is_done:
+                target = reward + self.gamma * np.amax(Net.predict(next_state)[0])
+            target_f = Net.predict(state)[0]
+            target_f[action] = target
+            q_values.append(target_f)
+        current_states = np.reshape(current_states, (-1, DIM_STATES))
+        q_values = np.reshape((q_values), (-1, NUM_ACTIONS))
+        return current_states, actions, q_values
 
     def evaluate(self, env, num_episodes, max_episode_length=None):
         """Test your agent with a provided environment.
