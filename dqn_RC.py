@@ -38,6 +38,12 @@ def create_lstm_model(nb_time_steps, nb_input_vector, num_actions):
     model.add(Dense(num_actions, activation='tanh'))
     return model
 
+def create_SL_model(state_shape, num_actions):
+    model = Sequential()
+    model.add(Dense(32, input_shape= state_shape, activation='ReLU'))
+    model.add(Dense(num_actions, activation='softmax'))
+    return model
+
 
 def main():
     # vehicle_network
@@ -47,7 +53,8 @@ def main():
     veh_agent = DQNAgent(q_network=veh_network,
                          q_network2=veh_network,
                          preprocessor=core.Preprocessor(),
-                         memory=core.ReplayMemory(),
+                         RLmemory=core.ReplayMemory(),
+                         SLmemory=core.ReplayMemory(),
                          policy=1,
                          gamma=0.1,
                          target_update_freq=100,
@@ -68,7 +75,7 @@ def main():
     # att_agent.compile('Adam', 'mse')
     env = VehicleFollowingENV()
     for i_episode in range(20):
-        veh_agent.fit(env, 10 ** 6)
+        veh_agent.fit(env=env, num_iterations=10**6)
         # att_agent.fit(env, 10 ** 6)
     # env.close()
     model_json = veh_network.to_json()

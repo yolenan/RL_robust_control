@@ -238,7 +238,7 @@ class ReplayMemory:
         self.indicator = 0
         self.length = 0
 
-    def append(self, state, action, reward, next_state, is_done):
+    def append(self, state, action, reward=None, next_state=None, is_done=None):
         new_sample = Sample(state, action, reward, next_state, is_done)
         loc = self.indicator % self.max_size
         if len(self.replay_buffer) < self.max_size:
