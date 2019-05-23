@@ -227,8 +227,8 @@ class DQNAgent:
                         elif self.algorithm == 'DuelingDQN':
                             target = reward
                     target_f = self.net.predict(state, steps=10)
-                    print(len(target_f))
-                    print(action)
+                    # print(len(target_f))
+                    # print(action)
                     target_f[action] = target
                     q_values.append(target_f)
                 # current_states = tf.reshape(current_states, 4)
