@@ -1,12 +1,14 @@
 """Main DQN agent."""
-from objectives import mean_huber_loss
-import random
+# from objectives import mean_huber_loss
+# import random
 import numpy as np
 from policy import GreedyEpsilonPolicy, LinearDecayGreedyEpsilonPolicy, UniformRandomPolicy
 from core import ReplayMemory, Preprocessor
-from DnsCarFollowENV2 import VehicleFollowingENV
+from NAF.DnsCarFollowENV2 import VehicleFollowingENV
 from copy import deepcopy
-from dqn_RC import create_SL_model
+from keras.models import Sequential
+from keras.layers import Dense
+# from dqn_RC import create_SL_model
 from keras.metrics import categorical_crossentropy, mse
 
 # 用于创建SL网络的输入输出维度
@@ -15,8 +17,10 @@ NUM_ACTIONS = 32
 RC = 0  # 纳什均衡的合作-竞争参数 R1 + R2 = RC
 ETA = 0.5  # NFSP选择最优策略和平均策略的概率
 
+
 class DQNAgent:
-    """Class implementing DQN.
+    """
+    Class implementing DQN.
 
     This is a basic outline of the functions/parameters you will need
     in order to implement the DQNAgnet. This is just to get you
@@ -77,6 +81,12 @@ class DQNAgent:
         self.batch_size = batch_size
         self.algorithm = algorithm
         self.render = render
+
+    def create_SL_model(self, state_shape, num_actions):
+        model = Sequential()
+        model.add(Dense(32, input_shape=state_shape, activation='ReLU'))
+        model.add(Dense(num_actions, activation='softmax'))
+        return model
 
     def compile(self, optimizer, loss_func):
         """Setup all of the TF graph variables/ops.
@@ -202,7 +212,7 @@ class DQNAgent:
             # next_state = self.pre.process_state_for_memory(next_state)
             states.append(next_state)
             tmp += 1
-            self.mem.append(state, prev_action, reward, next_state, done)
+            self.rl_mem.append(state, prev_action, reward, next_state, done)
             # if tmp >= 6:
             #     # frames = states[-5:-1]
             #     # frames2 = states[-4:]
@@ -216,10 +226,10 @@ class DQNAgent:
                 self.net2 = self.net
             if i != 0 and i % self.train_freq == 0:
                 print('{}th iteration, {}th train starts.'.format(i, i // self.train_freq))
-                batches = min(self.batch_size, len(self.mem))
+                batches = min(self.batch_size, len(self.rl_mem))
                 current_states = []
                 q_values = []
-                for samples in self.mem.sample(batches):
+                for samples in self.rl_mem.sample(batches):
                     current_state, action, reward, next_state, is_done = [samples.state,
                                                                           samples.action,
                                                                           samples.reward,
@@ -239,7 +249,8 @@ class DQNAgent:
                             # TODO
                         elif self.algorithm == 'DuelingDQN':
                             target = reward
-                    target_f = self.net.predict(state, steps=10)
+                    print(state)
+                    target_f = self.net.predict(states[-10:], steps=32)
                     print(len(target_f))
                     print(action)
                     target_f[action] = target
@@ -261,8 +272,8 @@ class DQNAgent:
         self.p2_net2 = deepcopy(self.net2)
 
         # SL network: NN
-        self.p1_policy = create_SL_model(DIM_STATES, NUM_ACTIONS)
-        self.p2_policy = create_SL_model(DIM_STATES, NUM_ACTIONS)
+        self.p1_policy = self.create_SL_model(DIM_STATES, NUM_ACTIONS)
+        self.p2_policy = self.create_SL_model(DIM_STATES, NUM_ACTIONS)
 
         self.p1_policy.compile('Adam', categorical_crossentropy)
         self.p2_policy.compile('Adam', mse)
@@ -300,7 +311,7 @@ class DQNAgent:
 
             next_state, reward, done = env.step(action_weight=p1_action, action_attacker=p2_action)
 
-            self.p1_RL_mem.append((state, p1_action, RC-reward, next_state, done))
+            self.p1_RL_mem.append((state, p1_action, RC - reward, next_state, done))
             self.p2_RL_mem.append((state, p2_action, reward, next_state, done))
             self.p1_SL_mem.append((state, p1_action))
             self.p2_SL_mem.append((state, p2_action))
@@ -322,8 +333,10 @@ class DQNAgent:
 
             if total_step >= self.burn_in and total_step % self.train_freq == 0:
                 batches = min(self.batch_size, len(self.p1_RL_mem))
-                p1_states, p1_actions, p1_q_values = self.sample_from_Replay_Memory(batches, self.p1_RL_mem, self.p1_net)
-                p2_states, p2_actions, p2_q_values = self.sample_from_Replay_Memory(batches, self.p2_RL_mem, self.p2_net)
+                p1_states, p1_actions, p1_q_values = self.sample_from_Replay_Memory(batches, self.p1_RL_mem,
+                                                                                    self.p1_net)
+                p2_states, p2_actions, p2_q_values = self.sample_from_Replay_Memory(batches, self.p2_RL_mem,
+                                                                                    self.p2_net)
 
                 self.p1_net.fit(p1_states, p1_q_values)
                 self.p2_net.fit(p2_states, p2_q_values)
@@ -332,7 +345,6 @@ class DQNAgent:
 
             state = next_state
         return total_step, done
-
 
     def sample_from_Replay_Memory(self, batches, ReplayMemory, Net):
         current_states = []
@@ -397,7 +409,7 @@ class DQNAgent:
                     # frames2 = states[-4:]
                     # state_ = tf.concat([tf.expand_dims(i, 2) for i in frames], 2)
                     # next_state_ = tf.concat([tf.expand_dims(i, 2) for i in frames2], 2)
-                    self.mem.append(state, prev_action, reward, next_state, done)
+                    self.rl_mem.append(state, prev_action, reward, next_state, done)
                     states.append(state)
                     states = states[-5:]
                 prev_action = action

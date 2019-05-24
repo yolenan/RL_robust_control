@@ -4,12 +4,13 @@ SAMPLE_INTERVAL = 0.1
 SPEED_LIMIT = 20
 ACC_MODE = 0
 UPPER_BOUND = 100
-observation_space = 4
-action_space = 4
 ATTACKER_LIMIT = np.array([1, 1, 1, 1])  # 攻击阈值
 
 
 class VehicleFollowingENV(object):
+    observation_space = 4
+    action_space = 4
+
     def __init__(self):
         '''
         :param
@@ -90,7 +91,7 @@ class VehicleFollowingENV(object):
         self.v_head = self.v_head + self.a_head * self.sample_interval
         self.v = self.v + self.action_car * self.sample_interval
         # 返回结果
-        if self.d <= 0 or self.d >= UPPER_BOUND:
+        if self.d <= 1 or self.d >= UPPER_BOUND or self.step_number > 100:
             is_done = True
         else:
             is_done = False

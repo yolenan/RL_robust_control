@@ -18,30 +18,26 @@ from dqn import DQNAgent
 
 # from gym.envs.atari import atari_env
 import core
-from keras.datasets import mnist
-from keras.layers import Dense, LSTM, Embedding
-from keras.utils import to_categorical
+from keras.layers import Dense, LSTM, Embedding, Input
 from keras.models import Sequential
 
 # parameters for LSTM
 nb_lstm_outputs = 32  # 神经元个数
-nb_time_steps = 1  # 时间序列长度
+nb_time_steps = 10  # 时间序列长度
 nb_input_vector = 4  # 输入序列
 acc_bound = 10
 
 
 def create_lstm_model(nb_time_steps, nb_input_vector, num_actions):
+    model_input = Input(shape=(nb_time_steps, nb_input_vector), name='lstm_input')
+    lstm_out = LSTM(32)(model_input)
+    V = Dense(1, activation='relu')(lstm_out)
+
     model = Sequential()
     model.add(Embedding(input_dim=nb_input_vector, output_dim=32))
     # model.add(LSTM(units=nb_lstm_outputs, input_shape=(nb_time_steps, nb_input_vector)))
     model.add(LSTM(nb_lstm_outputs))
     model.add(Dense(num_actions, activation='tanh'))
-    return model
-
-def create_SL_model(state_shape, num_actions):
-    model = Sequential()
-    model.add(Dense(32, input_shape= state_shape, activation='ReLU'))
-    model.add(Dense(num_actions, activation='softmax'))
     return model
 
 
@@ -75,7 +71,7 @@ def main():
     # att_agent.compile('Adam', 'mse')
     env = VehicleFollowingENV()
     for i_episode in range(20):
-        veh_agent.fit(env=env, num_iterations=10**6)
+        veh_agent.fit(env=env, num_iterations=10 ** 6)
         # att_agent.fit(env, 10 ** 6)
     # env.close()
     model_json = veh_network.to_json()
