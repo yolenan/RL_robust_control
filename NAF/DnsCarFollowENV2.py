@@ -26,7 +26,8 @@ class VehicleFollowingENV(object):
         self.lam = 1  # 控制量
         self.d0 = np.random.randint(10, 30)  # 初始距离
         self.d = self.d0  # 实时距离
-        self.v_head = np.random.random() * SPEED_LIMIT  # 前车速度
+        self.init_v = np.random.random() * SPEED_LIMIT
+        self.v_head = self.init_v  # 前车速度
         self.v = self.v_head  # 自车速度
         self.v_cal_raw = np.array([0, 0, 0, 0])
         self.v_cal = 0
@@ -42,7 +43,8 @@ class VehicleFollowingENV(object):
         v_head: 前车速度
         v:      自车速度
         '''
-        self.v_cal_raw = self.v_head * np.ones(4)
+
+        self.v_cal_raw = self.init_v * np.ones(4)
         return self.v_cal_raw
 
     def control(self, action_weight=np.ones(4), action_attacker=np.zeros(4)):
@@ -91,12 +93,12 @@ class VehicleFollowingENV(object):
         self.v_head = self.v_head + self.a_head * self.sample_interval
         self.v = self.v + self.action_car * self.sample_interval
         # 返回结果
-        if self.d <= 1 or self.d >= UPPER_BOUND or self.step_number > 100:
+        if self.d <= 1 or self.d >= UPPER_BOUND or self.step_number > 100000000:
             is_done = True
         else:
             is_done = False
         # reward 用
-        reward = (self.d - self.d0) ** 2
+        reward = -(self.d - self.d0) ** 2
 
         next_state = self.v_cal_raw
         return next_state, reward, is_done
@@ -113,7 +115,7 @@ if __name__ == '__main__':
         i = i + 1
         weight = np.random.random(4)
         weight = weight / weight.sum()
-        attrack = np.random.randn(4) + 0.1
+        attrack = np.random.randn(4) + 1
 
         next_state, reward, done = env.step(weight, attrack)
         print('R({:d}):{:<6.2f},  Real Distance:{:.2f} m.   '.format(i, reward, env.d))
