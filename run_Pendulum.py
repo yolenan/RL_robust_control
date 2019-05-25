@@ -1,4 +1,4 @@
-from DnsCarFollowENV2 import VehicleFollowingENV
+from NAF.DnsCarFollowENV2 import VehicleFollowingENV
 from RL_brain import DoubleDQN
 import numpy as np
 import matplotlib.pyplot as plt
