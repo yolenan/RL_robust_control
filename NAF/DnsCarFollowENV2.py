@@ -43,7 +43,7 @@ class VehicleFollowingENV(object):
         self.observation_space = observation_space
         self.vehicle_action_space = vehicle_action_space
         self.attacker_action_space = vehicle_action_space
-
+        self.RC = 0
 
     def reset(self):
         '''
@@ -52,7 +52,7 @@ class VehicleFollowingENV(object):
         v_head: 前车速度
         v:      自车速度
         '''
-
+        self.d = self.d0
         self.v_cal_raw = self.init_v * np.ones(4)
         return self.v_cal_raw
 
@@ -107,7 +107,7 @@ class VehicleFollowingENV(object):
         else:
             is_done = False
         # reward 用
-        reward = -(self.d - self.d0) ** 2
+        reward = -(self.d - self.d0) ** 2 / 100**2
 
         next_state = self.v_cal_raw
         return next_state, reward, is_done
