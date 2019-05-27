@@ -22,6 +22,9 @@ class ReplayMemory(object):
         self.memory[self.position] = Transition(*args)
         self.position = (self.position + 1) % self.capacity
 
+    def append(self, state, action):
+        self.memory.append((state, action))
+
     def sample(self, batch_size):
         return random.sample(self.memory, batch_size)
 
