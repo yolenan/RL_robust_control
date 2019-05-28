@@ -13,8 +13,8 @@ vehicle_action_space = 4
 备份文件
 """
 
-class VehicleFollowingENV(object):
 
+class VehicleFollowingENV(object):
 
     def __init__(self):
         '''
@@ -65,6 +65,9 @@ class VehicleFollowingENV(object):
         :return:
         action_car  车辆速度
         '''
+        # 权重归一化
+        action_weight = action_weight / sum(action_weight)
+        # print(action_weight, action_attacker)
         # 传感器随机误差
         SSerror = np.random.randn(4) * self.sensor_error
         # 更新前车原始数据
@@ -76,7 +79,8 @@ class VehicleFollowingENV(object):
         # 控制结果 公式1
         self.action_car = self.lam * (self.v_cal - self.v)
 
-    def step(self, action_weight=np.ones(4), action_attacker=np.random.random(4)):  # =np.ones(4), action_attacker=np.zeros(4)):
+    def step(self, action_weight=np.ones(4),
+             action_attacker=np.random.random(4)):  # =np.ones(4), action_attacker=np.zeros(4)):
         '''
         环境的步进, 输入攻击者和自车的权重动作，通过控制器, 返回新的Reward和观测值
         :param
@@ -107,7 +111,7 @@ class VehicleFollowingENV(object):
         else:
             is_done = False
         # reward 用
-        reward = -(self.d - self.d0) ** 2 / 100**2
+        reward = -(self.d - self.d0) ** 2 / 100 ** 2
 
         next_state = self.v_cal_raw
         return next_state, reward, is_done
@@ -128,8 +132,5 @@ if __name__ == '__main__':
         weight = np.random.random(4)
         weight = weight / weight.sum()
         attrack = np.random.randn(4) + 1
-        print(attrack)
-
         next_state, reward, done = env.step(weight, attrack)
         print('R({:d}):{:<6.2f},  Real Distance:{:.2f} m.   '.format(i, reward, env.d))
-        print(next_state)
