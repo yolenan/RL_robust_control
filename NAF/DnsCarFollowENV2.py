@@ -5,11 +5,16 @@ SPEED_LIMIT = 20
 ACC_MODE = 0
 UPPER_BOUND = 100
 ATTACKER_LIMIT = np.array([1, 1, 1, 1])  # 攻击阈值
+observation_space = 4
+action_space = 4
+vehicle_action_space = 4
 
+"""
+备份文件
+"""
 
 class VehicleFollowingENV(object):
-    observation_space = 4
-    action_space = 4
+
 
     def __init__(self):
         '''
@@ -35,6 +40,10 @@ class VehicleFollowingENV(object):
         self.a_head = 0  # 前车加速度
         self.action_car = 0  # 自身加速度
         self.step_number = 0
+        self.observation_space = observation_space
+        self.vehicle_action_space = vehicle_action_space
+        self.attacker_action_space = vehicle_action_space
+        self.RC = 0
 
     def reset(self):
         '''
@@ -43,7 +52,7 @@ class VehicleFollowingENV(object):
         v_head: 前车速度
         v:      自车速度
         '''
-
+        self.d = self.d0
         self.v_cal_raw = self.init_v * np.ones(4)
         return self.v_cal_raw
 
@@ -98,10 +107,13 @@ class VehicleFollowingENV(object):
         else:
             is_done = False
         # reward 用
-        reward = -(self.d - self.d0) ** 2
+        reward = -(self.d - self.d0) ** 2 / 100**2
 
         next_state = self.v_cal_raw
         return next_state, reward, is_done
+
+    def close(self):
+        return
 
 
 if __name__ == '__main__':
