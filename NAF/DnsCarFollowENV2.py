@@ -29,7 +29,7 @@ class VehicleFollowingENV(object):
         self.init_v = np.random.random() * SPEED_LIMIT
         self.v_head = self.init_v  # 前车速度
         self.v = self.v_head  # 自车速度
-        self.v_cal_raw = np.array([0, 0, 0, 0])
+        self.v_cal_raw = np.zeros(4)
         self.v_cal = 0
         self.sample_interval = SAMPLE_INTERVAL  # 采样间隔
         self.a_head = 0  # 前车加速度
@@ -67,7 +67,7 @@ class VehicleFollowingENV(object):
         # 控制结果 公式1
         self.action_car = self.lam * (self.v_cal - self.v)
 
-    def step(self, action_weight=np.ones(4), action_attacker=np.zeros(4)):  # =np.ones(4), action_attacker=np.zeros(4)):
+    def step(self, action_weight=np.ones(4), action_attacker=np.random.random(4)):  # =np.ones(4), action_attacker=np.zeros(4)):
         '''
         环境的步进, 输入攻击者和自车的权重动作，通过控制器, 返回新的Reward和观测值
         :param
@@ -116,6 +116,7 @@ if __name__ == '__main__':
         weight = np.random.random(4)
         weight = weight / weight.sum()
         attrack = np.random.randn(4) + 1
+        print(attrack)
 
         next_state, reward, done = env.step(weight, attrack)
         print('R({:d}):{:<6.2f},  Real Distance:{:.2f} m.   '.format(i, reward, env.d))

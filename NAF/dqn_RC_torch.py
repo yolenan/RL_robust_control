@@ -18,7 +18,7 @@ parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
 parser.add_argument('--tau', type=float, default=0.001, metavar='G',
                     help='discount factor for model (default: 0.001)')
 parser.add_argument('--ou_noise', type=bool, default=True)
-parser.add_argument('--param_noise', type=bool, default=False)
+parser.add_argument('--param_noise', type=bool, default=True)
 parser.add_argument('--noise_scale', type=float, default=0.3, metavar='G',
                     help='initial noise scale (default: 0.3)')
 parser.add_argument('--final_noise_scale', type=float, default=0.3, metavar='G',
