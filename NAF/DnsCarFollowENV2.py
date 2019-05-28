@@ -137,5 +137,7 @@ if __name__ == '__main__':
     i = 0
     while (not done and i < 1000):
         i = i + 1
-        next_state, reward, done = env.step(env.random_action())
+        a,b=env.random_action()
+        next_state, reward, done = env.step(a,b)
+        print(next_state)
         print('R({:d}):{:<6.2f},  Real Distance:{:.2f} m.   '.format(i, reward, env.d))

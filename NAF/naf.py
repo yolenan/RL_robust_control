@@ -5,6 +5,7 @@ import torch.nn as nn
 from torch.optim import Adam
 from torch.autograd import Variable
 import torch.nn.functional as F
+import torch.autograd as autograd
 
 
 def MSELoss(input, target):
@@ -33,7 +34,8 @@ class Policy(nn.Module):
 
         self.linear1 = nn.Linear(num_inputs, hidden_size)
         # self.emedbing=
-        self.lstm = nn.LSTM(num_inputs, hidden_size=hidden_size, batch_first=True)
+        self.lstm = nn.LSTM(input_size=num_inputs, hidden_size=hidden_size)
+        self.hidden_dim = hidden_size
         # self.bn1 = nn.BatchNorm1d(hidden_size)
         # self.bn1.weight.data.fill_(1)
         # self.bn1.bias.data.fill_(0)
@@ -59,11 +61,16 @@ class Policy(nn.Module):
             num_outputs, num_outputs), diagonal=-1).unsqueeze(0))
         self.diag_mask = Variable(torch.diag(torch.diag(
             torch.ones(num_outputs, num_outputs))).unsqueeze(0))
+        self.hidden = self.init_hidden()
+
+    def init_hidden(self):
+        return (autograd.Variable(torch.zeros(1, 1, self.hidden_dim)),
+                autograd.Variable(torch.zeros(1, 1, self.hidden_dim)))
 
     def forward(self, inputs):
         x, u = inputs
         # x = self.bn0(x)
-        x, _ = self.lstm(x)
+        x, self.hidden = self.lstm(x, self.hidden)
         x = torch.tanh(x)
         # x = F.tanh(self.linear2(x))
         V = self.V(x)
@@ -129,7 +136,7 @@ class NAF:
         loss = MSELoss(state_action_values, expected_state_action_values)
 
         self.optimizer.zero_grad()
-        loss.backward()
+        loss.backward(retain_graph=True)
         torch.nn.utils.clip_grad_norm(self.model.parameters(), 1)
         self.optimizer.step()
 

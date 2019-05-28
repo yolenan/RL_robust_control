@@ -89,12 +89,16 @@ def fit_nash():
     ave_reward = []
     total_numsteps = 0
     updates = 0
-    state_record = [env.reset()]
-    while len(state_record) < 20:
-        s, _, _ = env.step(env.random_action())
-        state_record.append(s)
+    # while len(state_record) < 20:
+    #     s, _, _ = env.step(env.random_action())
+    #     state_record.append(s)
     for i_episode in range(args.num_episodes):
         state = env.reset()
+        # state_record = [state]
+        # while len(state_record) < 20:
+        #     a, b = env.random_action()
+        #     s, _, _ = env.step(a, b)
+        #     state_record.append(s)
         if args.ou_noise:
             ounoise_vehicle.scale = (args.noise_scale - args.final_noise_scale) * max(0, args.exploration_end -
                                                                                       i_episode) / args.exploration_end + args.final_noise_scale
@@ -106,11 +110,9 @@ def fit_nash():
         episode_reward = 0
         while True:
             if random.random() < ETA:
-                print(np.shape(state_record))
-                print(state_record)
-                action_vehicle = agent_vehicle.select_action(torch.Tensor([state_record[-20:]]), ounoise_vehicle,
+                action_vehicle = agent_vehicle.select_action(torch.Tensor([[state]]), ounoise_vehicle,
                                                              param_noise_vehicle)
-                action_attacker = agent_attacker.select_action(torch.Tensor(state_record[-20:]), ounoise_attacker,
+                action_attacker = agent_attacker.select_action(torch.Tensor([[state]]), ounoise_attacker,
                                                                param_noise_attacker)
             else:
                 action_vehicle = torch.Tensor(
@@ -119,7 +121,6 @@ def fit_nash():
                     state.reshape(-1, 4)).sum()])
 
             next_state, reward, done = env.step(action_vehicle.numpy()[0], action_attacker.numpy()[0])
-            state_record.append(next_state)
             total_numsteps += 1
             episode_reward += reward
 
@@ -134,7 +135,6 @@ def fit_nash():
 
             reward_vehicle = torch.Tensor([reward])
             reward_attacker = torch.Tensor([env.RC - reward])
-
             memory_vehicle.push(torch.Tensor([[state]]), action_vehicle, mask, next_state, reward_vehicle)
             memory_attacker.push(torch.Tensor([[state]]), action_attacker, mask, next_state, reward_attacker)
 
@@ -195,18 +195,17 @@ def fit_nash():
                                                                  param_noise_vehicle)
                     action_attacker = agent_attacker.select_action(torch.Tensor([[state]]), ounoise_attacker,
                                                                    param_noise_attacker)
-                else:
                     action_vehicle = torch.Tensor([policy_vehicle.predict(
                         state.reshape(-1, 4)) / policy_vehicle.predict(state.reshape(-1, 4)).sum()])
                     action_attacker = torch.Tensor([policy_attacker.predict(
                         state.reshape(-1, 4)) / policy_attacker.predict(state.reshape(-1, 4)).sum()])
 
-                next_state, reward, done = env.step(action_vehicle.numpy()[0], action_attacker.numpy()[0])
-                evaluate_reward += reward
+                    next_state, reward, done = env.step(action_vehicle.numpy()[0], action_attacker.numpy()[0])
+                    evaluate_reward += reward
 
-                state = next_state[0]
-                if done:
-                    average_reward = np.mean(rewards[-10:])
+                    state = next_state[0]
+                    if done:
+                        average_reward = np.mean(rewards[-10:])
                     print("{} % Episode finished, total numsteps: {}, reward: {}, average reward: {}".format(
                         i_episode / args.num_episodes * 100,
                         total_numsteps,
