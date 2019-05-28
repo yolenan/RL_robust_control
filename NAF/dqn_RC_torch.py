@@ -11,6 +11,7 @@ from NAF.Supervised_Learning import create_SL_model
 from param_noise import AdaptiveParamNoiseSpec, ddpg_distance_metric
 import argparse
 import os
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 torch.manual_seed(1234)
@@ -56,12 +57,12 @@ The Nash Eq* Factor RC is        {}
 
 ETA = 0.5
 
+
 def fit_nash():
     agent_vehicle = NAF(args.gamma, args.tau, args.hidden_size,
                         env.observation_space, env.vehicle_action_space)
     agent_attacker = NAF(args.gamma, args.tau, args.hidden_size,
                          env.observation_space, env.attacker_action_space)
-
 
     policy_vehicle = create_SL_model(env.observation_space, env.vehicle_action_space)
     policy_attacker = create_SL_model(env.observation_space, env.attacker_action_space)
@@ -82,7 +83,6 @@ def fit_nash():
                                                   desired_action_stddev=args.noise_scale,
                                                   adaptation_coefficient=1.05) if args.param_noise else None
 
-
     rewards = []
     total_numsteps = 0
     updates = 0
@@ -90,20 +90,24 @@ def fit_nash():
         state = env.reset()
         if args.ou_noise:
             ounoise_vehicle.scale = (args.noise_scale - args.final_noise_scale) * max(0, args.exploration_end -
-                                                                              i_episode) / args.exploration_end + args.final_noise_scale
+                                                                                      i_episode) / args.exploration_end + args.final_noise_scale
             ounoise_vehicle.reset()
 
             ounoise_attacker.scale = (args.noise_scale - args.final_noise_scale) * max(0, args.exploration_end -
-                                                                                      i_episode) / args.exploration_end + args.final_noise_scale
+                                                                                       i_episode) / args.exploration_end + args.final_noise_scale
             ounoise_attacker.reset()
         episode_reward = 0
         while True:
             if random.random() < ETA:
-                action_vehicle = agent_vehicle.select_action(torch.Tensor([[state]]), ounoise_vehicle, param_noise_vehicle)
-                action_attacker = agent_attacker.select_action(torch.Tensor([[state]]), ounoise_attacker, param_noise_attacker)
+                action_vehicle = agent_vehicle.select_action(torch.Tensor([[state]]), ounoise_vehicle,
+                                                             param_noise_vehicle)
+                action_attacker = agent_attacker.select_action(torch.Tensor([[state]]), ounoise_attacker,
+                                                               param_noise_attacker)
             else:
-                action_vehicle = torch.Tensor([policy_vehicle.predict(state.reshape(-1, 4))/policy_vehicle.predict(state.reshape(-1, 4)).sum()])
-                action_attacker = torch.Tensor([policy_attacker.predict(state.reshape(-1, 4))/policy_attacker.predict(state.reshape(-1, 4)).sum()])
+                action_vehicle = torch.Tensor(
+                    [policy_vehicle.predict(state.reshape(-1, 4)) / policy_vehicle.predict(state.reshape(-1, 4)).sum()])
+                action_attacker = torch.Tensor([policy_attacker.predict(state.reshape(-1, 4)) / policy_attacker.predict(
+                    state.reshape(-1, 4)).sum()])
 
             next_state, reward, done = env.step(action_vehicle.numpy()[0], action_attacker.numpy()[0])
             total_numsteps += 1
@@ -158,8 +162,8 @@ def fit_nash():
 
                 states_veh = np.reshape(states_veh, (-1, env.observation_space))
                 states_att = np.reshape(states_att, (-1, env.observation_space))
-                actions_veh =np.reshape(actions_veh, (-1, env.vehicle_action_space))
-                actions_att =np.reshape(actions_att, (-1, env.attacker_action_space))
+                actions_veh = np.reshape(actions_veh, (-1, env.vehicle_action_space))
+                actions_att = np.reshape(actions_att, (-1, env.attacker_action_space))
 
                 policy_vehicle.fit(states_veh, actions_veh, verbose=False)
                 policy_attacker.fit(states_att, actions_att, verbose=False)
@@ -189,7 +193,6 @@ def fit_nash():
                 next_state, reward, done = env.step(action_vehicle.numpy()[0], action_attacker.numpy()[0])
                 evaluate_reward += reward
 
-
                 state = next_state[0]
                 if done:
                     print("Episode: {}, total numsteps: {}, reward: {}, average reward: {}".format(i_episode,
@@ -200,30 +203,27 @@ def fit_nash():
                     break
                 # writer.add_scalar('reward/test', episode_reward, i_episode)
 
-
     env.close()
 
 
 def main():
     agent_vehicle = NAF(args.gamma, args.tau, args.hidden_size,
-                         env.observation_space, env.vehicle_action_space)
+                        env.observation_space, env.vehicle_action_space)
     agent_attacker = NAF(args.gamma, args.tau, args.hidden_size,
                          env.observation_space, env.attacker_action_space)
 
-
     vehicle_memory = ReplayMemory(1000000)
     attacker_memory = ReplayMemory(1000000)
-
 
     vehicle_ounoise = OUNoise(env.vehicle_action_space) if args.ou_noise else None
     attacker_ounoise = OUNoise(env.attacker_action_space) if args.ou_noise else None
 
     param_noise_vehicle = AdaptiveParamNoiseSpec(initial_stddev=0.05,
-                                         desired_action_stddev=args.noise_scale,
-                                         adaptation_coefficient=1.05) if args.param_noise else None
+                                                 desired_action_stddev=args.noise_scale,
+                                                 adaptation_coefficient=1.05) if args.param_noise else None
     param_noise_attacker = AdaptiveParamNoiseSpec(initial_stddev=0.05,
-                                         desired_action_stddev=args.noise_scale,
-                                         adaptation_coefficient=1.05) if args.param_noise else None
+                                                  desired_action_stddev=args.noise_scale,
+                                                  adaptation_coefficient=1.05) if args.param_noise else None
 
     rewards = []
     total_numsteps = 0
@@ -234,11 +234,11 @@ def main():
 
         if args.ou_noise:
             vehicle_ounoise.scale = (args.noise_scale - args.final_noise_scale) * max(0, args.exploration_end -
-                                                                              i_episode) / args.exploration_end + args.final_noise_scale
+                                                                                      i_episode) / args.exploration_end + args.final_noise_scale
             vehicle_ounoise.reset()
 
             attacker_ounoise.scale = (args.noise_scale - args.final_noise_scale) * max(0, args.exploration_end -
-                                                                                      i_episode) / args.exploration_end + args.final_noise_scale
+                                                                                       i_episode) / args.exploration_end + args.final_noise_scale
             attacker_ounoise.reset()
 
         episode_reward = 0
@@ -258,7 +258,7 @@ def main():
             next_state = torch.Tensor([next_state])
 
             reward_vehicle = torch.Tensor([-reward])
-            reward_attacker = torch.Tensor([env.RC+reward])
+            reward_attacker = torch.Tensor([env.RC + reward])
 
             vehicle_memory.push(state, action_vehicle, mask, next_state, reward_vehicle)
             attacker_memory.push(state, action_attacker, mask, next_state, reward_attacker)
@@ -294,7 +294,8 @@ def main():
             unperturbed_actions_vehicle = agent_vehicle.select_action(states_vehicle, None, None)
             perturbed_actions_vehicle = torch.cat([transition[1] for transition in episode_transitions_vehicle], 0)
 
-            ddpg_dist_vehicle = ddpg_distance_metric(perturbed_actions_vehicle.numpy(), unperturbed_actions_vehicle.numpy())
+            ddpg_dist_vehicle = ddpg_distance_metric(perturbed_actions_vehicle.numpy(),
+                                                     unperturbed_actions_vehicle.numpy())
             param_noise_vehicle.adapt(ddpg_dist_vehicle)
 
             episode_transitions_attacker = attacker_memory.memory[attacker_memory.position - t:attacker_memory.position]
@@ -302,7 +303,8 @@ def main():
             unperturbed_actions_attacker = agent_attacker.select_action(states_attacker, None, None)
             perturbed_actions_attacker = torch.cat([transition[1] for transition in episode_transitions_attacker], 0)
 
-            ddpg_dist_attacker = ddpg_distance_metric(perturbed_actions_attacker.numpy(), unperturbed_actions_attacker.numpy())
+            ddpg_dist_attacker = ddpg_distance_metric(perturbed_actions_attacker.numpy(),
+                                                      unperturbed_actions_attacker.numpy())
             param_noise_attacker.adapt(ddpg_dist_attacker)
 
         rewards.append(episode_reward)
@@ -331,7 +333,6 @@ def main():
                                                                                            np.mean(rewards[-10:])))
 
     env.close()
-
 
 
 if __name__ == '__main__':

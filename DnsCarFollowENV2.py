@@ -44,7 +44,7 @@ class VehicleFollowingENV(object):
         self.v_cal_raw = self.v_head * np.ones(4)
         return self.v_cal_raw
 
-    def control(self, action_weight=np.ones(4), action_attacker=np.zeros(4)):
+    def control(self, action_weight, action_attacker):
         '''
         :param
         action_weight:权重
