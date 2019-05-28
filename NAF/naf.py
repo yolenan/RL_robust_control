@@ -64,10 +64,10 @@ class Policy(nn.Module):
         x, u = inputs
         # x = self.bn0(x)
         x, _ = self.lstm(x)
-        x = F.tanh(x)
+        x = torch.tanh(x)
         # x = F.tanh(self.linear2(x))
         V = self.V(x)
-        mu = F.tanh(self.mu(x))
+        mu = torch.tanh(self.mu(x))
 
         Q = None
         if u is not None:
