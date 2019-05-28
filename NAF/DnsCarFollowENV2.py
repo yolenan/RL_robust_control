@@ -28,7 +28,7 @@ class VehicleFollowingENV(object):
         a_head: 前车加速度
         '''
         self.sensor_error = np.array([0.1, 0.1, 0.1, 0.1])  # 传感器误差高斯噪声
-        self.lam = 1  # 控制量
+        self.lam = 0.02  # 控制量, reaction parameter
         self.d0 = np.random.randint(10, 30)  # 初始距离
         self.d = self.d0  # 实时距离
         self.init_v = np.random.random() * SPEED_LIMIT
@@ -36,6 +36,8 @@ class VehicleFollowingENV(object):
         self.v = self.v_head  # 自车速度
         self.v_cal_raw = np.zeros(4)
         self.v_cal = 0
+        self.T = 10
+        self.epsilon = 0.01
         self.sample_interval = SAMPLE_INTERVAL  # 采样间隔
         self.a_head = 0  # 前车加速度
         self.action_car = 0  # 自身加速度
@@ -116,6 +118,12 @@ class VehicleFollowingENV(object):
         next_state = self.v_cal_raw
         return next_state, reward, is_done
 
+    def random_action(self):
+        weight = np.random.random(4)
+        weight = weight / weight.sum()
+        attrack = np.random.randn(4) + 1
+        return weight, attrack
+
     def close(self):
         return
 
@@ -129,8 +137,5 @@ if __name__ == '__main__':
     i = 0
     while (not done and i < 1000):
         i = i + 1
-        weight = np.random.random(4)
-        weight = weight / weight.sum()
-        attrack = np.random.randn(4) + 1
-        next_state, reward, done = env.step(weight, attrack)
+        next_state, reward, done = env.step(env.random_action())
         print('R({:d}):{:<6.2f},  Real Distance:{:.2f} m.   '.format(i, reward, env.d))
