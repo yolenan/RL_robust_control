@@ -7,6 +7,9 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 import torch.autograd as autograd
 
+# is_cuda = torch.cuda.is_available()
+is_cuda = False
+
 
 def MSELoss(input, target):
     return torch.sum((input - target) ** 2) / input.data.nelement()
@@ -61,11 +64,18 @@ class Policy(nn.Module):
             num_outputs, num_outputs), diagonal=-1).unsqueeze(0))
         self.diag_mask = Variable(torch.diag(torch.diag(
             torch.ones(num_outputs, num_outputs))).unsqueeze(0))
+        if is_cuda:
+            self.tril_mask = self.tril_mask.cuda()
+            self.diag_mask = self.diag_mask.cuda()
         self.hidden = self.init_hidden()
 
     def init_hidden(self):
-        return (autograd.Variable(torch.zeros(1, 1, self.hidden_dim)),
-                autograd.Variable(torch.zeros(1, 1, self.hidden_dim)))
+        if is_cuda:
+            return (autograd.Variable(torch.zeros(1, 1, self.hidden_dim).cuda()),
+                    autograd.Variable(torch.zeros(1, 1, self.hidden_dim)).cuda())
+        else:
+            return (autograd.Variable(torch.zeros(1, 1, self.hidden_dim)),
+                    autograd.Variable(torch.zeros(1, 1, self.hidden_dim)))
 
     def forward(self, inputs):
         x, u = inputs
@@ -80,7 +90,6 @@ class Policy(nn.Module):
         if u is not None:
             num_outputs = mu.size(2)
             L = self.L(x).view(-1, num_outputs, num_outputs)
-            # print(len(L))
             L = L * self.tril_mask.expand_as(L) + torch.exp(L) * self.diag_mask.expand_as(L)
             P = torch.bmm(L, L.transpose(2, 1))
 
@@ -104,17 +113,28 @@ class NAF:
 
         self.gamma = gamma
         self.tau = tau
+        if is_cuda:
+            self.model = self.model.cuda()
+            self.target_model = self.target_model.cuda()
+            # self.optimizer = self.optimizer.cuda()
 
         hard_update(self.target_model, self.model)
 
     def select_action(self, state, action_noise=None, param_noise=None):
         self.model.eval()
         # print(Variable(state))
-        mu, _, _ = self.model((Variable(state), None))
+        if is_cuda:
+            V_s = Variable(state).cuda()
+            ac_noise = torch.Tensor(action_noise.noise()).cuda()
+        else:
+            V_s = Variable(state)
+            ac_noise = torch.Tensor(action_noise.noise())
+        mu, _, _ = self.model((V_s, None))
         self.model.train()
         mu = mu.data
         if action_noise is not None:
-            mu += torch.Tensor(action_noise.noise())
+            mu += ac_noise
+        mu = mu.cpu()
 
         return mu.clamp(-1, 1)
 
@@ -124,6 +144,12 @@ class NAF:
         reward_batch = Variable(torch.cat(batch.reward))
         mask_batch = Variable(torch.cat(batch.mask))
         next_state_batch = Variable(torch.cat(batch.next_state))
+        if is_cuda:
+            state_batch = state_batch.cuda()
+            action_batch = action_batch.cuda()
+            reward_batch = reward_batch.cuda()
+            mask_batch = mask_batch.cuda()
+            next_state_batch = next_state_batch.cuda()
 
         _, _, next_state_values = self.target_model((next_state_batch, None))
 
@@ -136,6 +162,7 @@ class NAF:
         loss = MSELoss(state_action_values, expected_state_action_values)
 
         self.optimizer.zero_grad()
+        # loss.backward(retain_graph=True)
         loss.backward(retain_graph=True)
         torch.nn.utils.clip_grad_norm(self.model.parameters(), 1)
         self.optimizer.step()

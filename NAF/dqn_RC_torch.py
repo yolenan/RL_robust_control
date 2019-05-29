@@ -17,6 +17,8 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 torch.manual_seed(1234)
 np.random.seed(1234)
+# is_cuda = torch.cuda.is_available()
+is_cuda = False
 
 parser = argparse.ArgumentParser(description='PyTorch REINFORCE example')
 parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
@@ -94,11 +96,6 @@ def fit_nash():
     #     state_record.append(s)
     for i_episode in range(args.num_episodes):
         state = env.reset()
-        # state_record = [state]
-        # while len(state_record) < 20:
-        #     a, b = env.random_action()
-        #     s, _, _ = env.step(a, b)
-        #     state_record.append(s)
         if args.ou_noise:
             ounoise_vehicle.scale = (args.noise_scale - args.final_noise_scale) * max(0, args.exploration_end -
                                                                                       i_episode) / args.exploration_end + args.final_noise_scale
@@ -119,13 +116,16 @@ def fit_nash():
                     [policy_vehicle.predict(state.reshape(-1, 4)) / policy_vehicle.predict(state.reshape(-1, 4)).sum()])
                 action_attacker = torch.Tensor([policy_attacker.predict(state.reshape(-1, 4)) / policy_attacker.predict(
                     state.reshape(-1, 4)).sum()])
-
-            next_state, reward, done = env.step(action_vehicle.numpy()[0], action_attacker.numpy()[0])
+            if is_cuda:
+                ac_v, ac_a = action_vehicle.cpu().numpy()[0], action_attacker.cpu().numpy()[0]
+            else:
+                ac_v, ac_a = action_vehicle.numpy()[0], action_attacker.numpy()[0]
+            next_state, reward, done = env.step(ac_v, ac_a)
             total_numsteps += 1
             episode_reward += reward
 
-            memory_SL_vehicle.append(state, action_vehicle.numpy()[0])
-            memory_SL_attacker.append(state, action_attacker.numpy()[0])
+            memory_SL_vehicle.append(state, ac_v)
+            memory_SL_attacker.append(state, ac_a)
 
             action_vehicle = torch.Tensor(action_vehicle)
             action_attacker = torch.Tensor(action_attacker)
@@ -199,21 +199,25 @@ def fit_nash():
                         state.reshape(-1, 4)) / policy_vehicle.predict(state.reshape(-1, 4)).sum()])
                     action_attacker = torch.Tensor([policy_attacker.predict(
                         state.reshape(-1, 4)) / policy_attacker.predict(state.reshape(-1, 4)).sum()])
-
-                    next_state, reward, done = env.step(action_vehicle.numpy()[0], action_attacker.numpy()[0])
+                    if is_cuda:
+                        ac_v, ac_a = action_vehicle.cpu().numpy()[0], action_attacker.cpu().numpy()[0]
+                    else:
+                        ac_v, ac_a = action_vehicle.numpy()[0], action_attacker.numpy()[0]
+                    next_state, reward, done = env.step(ac_v, ac_a)
+                    total_numsteps += 1
                     evaluate_reward += reward
 
                     state = next_state[0]
                     if done:
                         average_reward = np.mean(rewards[-10:])
-                    print("{} % Episode finished, total numsteps: {}, reward: {}, average reward: {}".format(
-                        i_episode / args.num_episodes * 100,
-                        total_numsteps,
-                        evaluate_reward,
-                        average_reward))
-                    eva_reward.append(evaluate_reward)
-                    ave_reward.append(average_reward)
-                    break
+                        print("{} % Episode finished, total numsteps: {}, reward: {}, average reward: {}".format(
+                            i_episode / args.num_episodes * 100,
+                            total_numsteps,
+                            evaluate_reward,
+                            average_reward))
+                        eva_reward.append(evaluate_reward)
+                        ave_reward.append(average_reward)
+                        break
                 # writer.add_scalar('reward/test', episode_reward, i_episode)
 
     env.close()
