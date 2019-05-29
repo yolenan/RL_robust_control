@@ -7,8 +7,9 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 import torch.autograd as autograd
 
-# is_cuda = torch.cuda.is_available()
-is_cuda = False
+is_cuda = torch.cuda.is_available()
+# is_cuda = False
+torch.backends.cudnn.enabled = False
 
 
 def MSELoss(input, target):
@@ -80,7 +81,8 @@ class Policy(nn.Module):
     def forward(self, inputs):
         x, u = inputs
         # x = self.bn0(x)
-        x, self.hidden = self.lstm(x, self.hidden)
+        # x, self.hidden = self.lstm(x, self.hidden)
+        x, _ = self.lstm(x)
         x = torch.tanh(x)
         # x = F.tanh(self.linear2(x))
         V = self.V(x)
@@ -134,8 +136,8 @@ class NAF:
         mu = mu.data
         if action_noise is not None:
             mu += ac_noise
-        mu = mu.cpu()
-
+        if is_cuda:
+            mu = mu.cpu()
         return mu.clamp(-1, 1)
 
     def update_parameters(self, batch):

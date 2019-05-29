@@ -39,7 +39,7 @@ parser.add_argument('--batch_size', type=int, default=128, metavar='N',
                     help='batch size (default: 128)')
 parser.add_argument('--num_steps', type=int, default=100000, metavar='N',
                     help='max episode length (default: 1000)')
-parser.add_argument('--num_episodes', type=int, default=500, metavar='N',
+parser.add_argument('--num_episodes', type=int, default=300, metavar='N',
                     help='number of episodes (default: 1000)')
 parser.add_argument('--hidden_size', type=int, default=128, metavar='N',
                     help='number of episodes (default: 128)')
@@ -89,6 +89,8 @@ def fit_nash():
     rewards = []
     eva_reward = []
     ave_reward = []
+    eva_ac_veh = []
+    eva_ac_att = []
     total_numsteps = 0
     updates = 0
     # while len(state_record) < 20:
@@ -195,36 +197,51 @@ def fit_nash():
                                                                  param_noise_vehicle)
                     action_attacker = agent_attacker.select_action(torch.Tensor([[state]]), ounoise_attacker,
                                                                    param_noise_attacker)
+                else:
                     action_vehicle = torch.Tensor([policy_vehicle.predict(
                         state.reshape(-1, 4)) / policy_vehicle.predict(state.reshape(-1, 4)).sum()])
                     action_attacker = torch.Tensor([policy_attacker.predict(
                         state.reshape(-1, 4)) / policy_attacker.predict(state.reshape(-1, 4)).sum()])
-                    if is_cuda:
-                        ac_v, ac_a = action_vehicle.cpu().numpy()[0], action_attacker.cpu().numpy()[0]
-                    else:
-                        ac_v, ac_a = action_vehicle.numpy()[0], action_attacker.numpy()[0]
-                    next_state, reward, done = env.step(ac_v, ac_a)
-                    total_numsteps += 1
-                    evaluate_reward += reward
+                if is_cuda:
+                    ac_v, ac_a = action_vehicle.cpu().numpy()[0], action_attacker.cpu().numpy()[0]
+                else:
+                    ac_v, ac_a = action_vehicle.numpy()[0], action_attacker.numpy()[0]
+                next_state, reward, done = env.step(ac_v, ac_a)
+                total_numsteps += 1
+                evaluate_reward += reward
 
-                    state = next_state[0]
-                    if done:
-                        average_reward = np.mean(rewards[-10:])
-                        print("{} % Episode finished, total numsteps: {}, reward: {}, average reward: {}".format(
-                            i_episode / args.num_episodes * 100,
-                            total_numsteps,
-                            evaluate_reward,
-                            average_reward))
-                        eva_reward.append(evaluate_reward)
-                        ave_reward.append(average_reward)
-                        break
-                # writer.add_scalar('reward/test', episode_reward, i_episode)
-
+                state = next_state[0]
+                if done:
+                    average_reward = np.mean(rewards[-10:])
+                    print("{} % Episode finished, total numsteps: {}, reward: {}, average reward: {}".format(
+                        i_episode / args.num_episodes * 100,
+                        total_numsteps,
+                        evaluate_reward,
+                        average_reward))
+                    eva_reward.append(evaluate_reward)
+                    ave_reward.append(average_reward)
+                    print(ac_v[0])
+                    eva_ac_veh.append((ac_v[0] + 1) / sum(ac_v[0] + 1))
+                    eva_ac_att.append((ac_a[0] + 1) / sum(ac_a[0] + 1))
+                    break
+            # writer.add_scalar('reward/test', episode_reward, i_episode)
     env.close()
     f = plt.figure()
     plt.plot(eva_reward, label='Eva_reward')
     plt.plot(ave_reward, label='Tra_ave_reward')
     plt.legend()
+    plt.show()
+    AC_veh = np.array(eva_ac_veh)
+    AC_att = np.array(eva_ac_att)
+    # print(AC_veh.shape)
+    # print(AC_veh)
+    plt.plot(AC_veh[:, 0], label='Bacon1')
+    plt.plot(AC_veh[:, 1], label='Bacon2')
+    plt.plot(AC_veh[:, 2], label='Bacon3')
+    plt.plot(AC_veh[:, 3], label='Bacon4')
+    # plt.plot(ave_reward, label='Tra_ave_reward')
+    plt.legend()
+    plt.savefig('Veh_result.png', ppi=300)
     plt.show()
 
 

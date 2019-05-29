@@ -68,7 +68,8 @@ class VehicleFollowingENV(object):
         action_car  车辆速度
         '''
         # 权重归一化
-        action_weight = action_weight / sum(action_weight)
+        action_weight = action_weight + 1
+        action_weight = action_weight / (sum(action_weight) + 0.0001) # 避免除0
         # print(action_weight, action_attacker)
         # 传感器随机误差
         SSerror = np.random.randn(4) * self.sensor_error
@@ -137,7 +138,7 @@ if __name__ == '__main__':
     i = 0
     while (not done and i < 1000):
         i = i + 1
-        a,b=env.random_action()
-        next_state, reward, done = env.step(a,b)
+        a, b = env.random_action()
+        next_state, reward, done = env.step(a, b)
         print(next_state)
         print('R({:d}):{:<6.2f},  Real Distance:{:.2f} m.   '.format(i, reward, env.d))
