@@ -38,7 +38,7 @@ class Policy(nn.Module):
 
         self.linear1 = nn.Linear(num_inputs, hidden_size)
         # self.emedbing=
-        self.lstm = nn.LSTM(input_size=num_inputs, hidden_size=hidden_size, batch_first=True)
+        self.lstm = nn.LSTM(input_size=num_inputs, num_layers=2, hidden_size=hidden_size, batch_first=True)
         self.hidden_dim = hidden_size
         # self.bn1 = nn.BatchNorm1d(hidden_size)
         # self.bn1.weight.data.fill_(1)
@@ -72,11 +72,11 @@ class Policy(nn.Module):
 
     def init_hidden(self):
         if is_cuda:
-            return (autograd.Variable(torch.zeros(1, 1, self.hidden_dim).cuda()),
-                    autograd.Variable(torch.zeros(1, 1, self.hidden_dim)).cuda())
+            return (autograd.Variable(torch.zeros(1, 128, self.hidden_dim).cuda()),
+                    autograd.Variable(torch.zeros(1, 128, self.hidden_dim)).cuda())
         else:
-            return (autograd.Variable(torch.zeros(1, 1, self.hidden_dim)),
-                    autograd.Variable(torch.zeros(1, 1, self.hidden_dim)))
+            return (autograd.Variable(torch.zeros(1, 128, self.hidden_dim)),
+                    autograd.Variable(torch.zeros(1, 128, self.hidden_dim)))
 
     def forward(self, inputs):
         x, u = inputs
@@ -93,12 +93,12 @@ class Policy(nn.Module):
         if u is not None:
             num_outputs = mu.size(2)
             L = self.L(x).view(-1, num_outputs, num_outputs)
-            print(L.shape)
+            # print(L.shape)
             L = L * self.tril_mask.expand_as(L) + torch.exp(L) * self.diag_mask.expand_as(L)
             P = torch.bmm(L, L.transpose(2, 1))
 
             u_mu = u - mu
-            print(u_mu.shape, P.shape)
+            # print(u_mu.shape, P.shape)
             A = -0.5 * torch.bmm(torch.bmm(u_mu, P), u_mu.transpose(2, 1))[:, :, 0]
 
             Q = A + V
@@ -148,17 +148,17 @@ class NAF:
         action_batch = Variable(torch.cat(batch.action))
         reward_batch = Variable(torch.cat(batch.reward))
         mask_batch = Variable(torch.cat(batch.mask))
-        next_state_batch = Variable(torch.cat(batch.next_state))
-        action_batch = torch.unsqueeze(action_batch, 1)
+        next_state_batch = Variable(torch.cat(batch.next_state)).squeeze(1)
+        # action_batch = torch.unsqueeze(action_batch, 1)
         if is_cuda:
             state_batch = state_batch.cuda()
             action_batch = action_batch.cuda()
             reward_batch = reward_batch.cuda()
             mask_batch = mask_batch.cuda()
             next_state_batch = next_state_batch.cuda()
-        print(state_batch.shape)
-        print(next_state_batch.shape)
-        print(action_batch.shape)
+        # print('state shape', state_batch.shape)
+        # print('next state shape', next_state_batch.shape)
+        # print('action shape', action_batch.shape)
         _, _, next_state_values = self.target_model((next_state_batch, None))
 
         reward_batch = reward_batch.unsqueeze(1)

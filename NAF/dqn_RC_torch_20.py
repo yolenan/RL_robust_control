@@ -94,13 +94,14 @@ def fit_nash():
     total_numsteps = 0
     updates = 0
     state_record = [env.reset()]
-    while len(state_record) < 20:
-        s, _, _ = env.step(*env.random_action())
-        state_record.append(s)
+    # while len(state_record) < 20:
+    #     s, _, _ = env.step(*env.random_action())
+    #     state_record.append(s)
     # print(torch.Tensor([state_record[-20:]]).shape)
     for i_episode in range(args.num_episodes):
         state = env.reset()
         state_record = [state]
+        episode_steps = 0
         while len(state_record) < 20:
             s, _, _ = env.step(*env.random_action())
             state_record.append(s)
@@ -137,10 +138,12 @@ def fit_nash():
             # print(np.shape(state_record), next_state[0].shape)
             state_record.append(next_state[0])
             total_numsteps += 1
+            episode_steps += 1
             episode_reward += reward
-            print('sl-mem',state.shape,ac_v.shape)
-            memory_SL_vehicle.append(state, ac_v)
-            memory_SL_attacker.append(state, ac_a)
+            # print('sl-mem',state.shape,ac_v.shape)
+            # print('sl state mem', state.shape, ac_a.shape)
+            memory_SL_vehicle.append(state_record[-1], ac_v)
+            memory_SL_attacker.append(state_record[-1], ac_a)
 
             action_vehicle = torch.Tensor(action_vehicle)
             action_attacker = torch.Tensor(action_attacker)
@@ -155,12 +158,14 @@ def fit_nash():
             memory_vehicle.push(torch.Tensor([state_record[-20:]]), action_vehicle, mask, next_state, reward_vehicle)
             memory_attacker.push(torch.Tensor([state_record[-20:]]), action_attacker, mask, next_state, reward_attacker)
 
-            state = next_state.numpy()[0][0]
+            state = next_state.numpy()[0]
+            # print(state_record[-1].shape)
 
             if done:
-                rewards.append(episode_reward)
+                rewards.append(episode_reward / episode_steps)
                 if i_episode % 100:
-                    print('Episode {} ends, instant reward is {:.2f}'.format(i_episode, episode_reward))
+                    print('Episode {} ends, instant step-ave-reward is {:.4f}'.format(i_episode,
+                                                                                      episode_reward / episode_steps))
                 break
 
         if len(memory_vehicle) > args.batch_size:  # 开始训练
@@ -193,6 +198,8 @@ def fit_nash():
                 states_att = np.reshape(states_att, (-1, env.observation_space))
                 actions_veh = np.reshape(actions_veh, (-1, env.vehicle_action_space))
                 actions_att = np.reshape(actions_att, (-1, env.attacker_action_space))
+                # print(states_veh.shape, actions_veh.shape)
+                # print(states_att.shape, actions_att.shape)
 
                 policy_vehicle.fit(states_veh, actions_veh, verbose=False)
                 policy_attacker.fit(states_att, actions_att, verbose=False)
@@ -207,19 +214,23 @@ def fit_nash():
         if i_episode % 10 == 0:
             state = env.reset()
             evaluate_reward = 0
+            evaluate_steps = 0
             while True:
+                la = np.random.randint(0, len(state_record) - 20, 1)[0]
                 if random.random() < ETA:
-                    action_vehicle = agent_vehicle.select_action(torch.Tensor([state_record[-20:]]), ounoise_vehicle,
+                    action_vehicle = agent_vehicle.select_action(torch.Tensor([state_record[la:la + 20]]),
+                                                                 ounoise_vehicle,
                                                                  param_noise_vehicle)
-                    action_attacker = agent_attacker.select_action(torch.Tensor([state_record[-20:]]), ounoise_attacker,
+                    action_attacker = agent_attacker.select_action(torch.Tensor([state_record[la:la + 20]]),
+                                                                   ounoise_attacker,
                                                                    param_noise_attacker)
                 else:
                     action_vehicle = torch.Tensor([policy_vehicle.predict(
-                        state_record[-1].reshape(-1, 4)) / policy_vehicle.predict(
-                        state_record[-1].reshape(-1, 4)).sum()])
+                        state_record[la + 19].reshape(-1, 4)) / policy_vehicle.predict(
+                        state_record[la + 19].reshape(-1, 4)).sum()])
                     action_attacker = torch.Tensor([policy_attacker.predict(
-                        state_record[-1].reshape(-1, 4)) / policy_attacker.predict(
-                        state_record[-1].reshape(-1, 4)).sum()])
+                        state_record[la + 19].reshape(-1, 4)) / policy_attacker.predict(
+                        state_record[la + 19].reshape(-1, 4)).sum()])
                 if is_cuda:
                     ac_v, ac_a = action_vehicle.cpu().numpy()[0], action_attacker.cpu().numpy()[0]
                 else:
@@ -227,24 +238,29 @@ def fit_nash():
                 next_state, reward, done = env.step(ac_v, ac_a)
                 state_record.append(next_state[0])
                 total_numsteps += 1
+                evaluate_steps += 1
                 evaluate_reward += reward
 
                 state = next_state[0]
                 if done:
                     average_reward = np.mean(rewards[-10:])
-                    print("{} % Episode finished, total numsteps: {}, reward: {}, average reward: {}".format(
+                    print("{} % Episode finished, total numsteps: {}, eva-reward: {}, average reward: {}".format(
                         i_episode / args.num_episodes * 100,
                         total_numsteps,
-                        evaluate_reward,
+                        evaluate_reward / evaluate_steps,
                         average_reward))
-                    eva_reward.append(evaluate_reward)
+                    eva_reward.append(evaluate_reward / evaluate_steps)
                     ave_reward.append(average_reward)
-                    print(ac_v[0])
+                    # print(ac_v[0])
                     eva_ac_veh.append((ac_v[0] + 1) / sum(ac_v[0] + 1))
                     eva_ac_att.append((ac_a[0] + 1) / sum(ac_a[0] + 1))
                     break
             # writer.add_scalar('reward/test', episode_reward, i_episode)
     env.close()
+    np.savetxt('./Result/eva_result.csv', eva_reward, delimiter=',')
+    np.savetxt('./Result/ave_result.csv', ave_reward, delimiter=',')
+    # np.savetxt('./result/eva_result.csv', eva_reward, delimiter=',')
+    # np.savetxt('./result/eva_result.csv', ave_reward, delimiter=',')
     f = plt.figure()
     plt.plot(eva_reward, label='Eva_reward')
     plt.plot(ave_reward, label='Tra_ave_reward')
@@ -260,7 +276,7 @@ def fit_nash():
     plt.plot(AC_veh[:, 3], label='Bacon4')
     # plt.plot(ave_reward, label='Tra_ave_reward')
     plt.legend()
-    plt.savefig('Veh_result.png', ppi=300)
+    plt.savefig('./Result/Veh_result.png', ppi=300)
     plt.show()
 
 

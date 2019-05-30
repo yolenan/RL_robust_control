@@ -114,7 +114,7 @@ class VehicleFollowingENV(object):
         else:
             is_done = False
         # reward 用
-        reward = -(self.d - self.d0) ** 2 / 100 ** 2
+        reward = -(self.d - self.d0) ** 2 / 100
 
         next_state = self.v_cal_raw
         return next_state, reward, is_done
