@@ -38,7 +38,7 @@ class Policy(nn.Module):
 
         self.linear1 = nn.Linear(num_inputs, hidden_size)
         # self.emedbing=
-        self.lstm = nn.LSTM(input_size=num_inputs, hidden_size=hidden_size)
+        self.lstm = nn.LSTM(input_size=num_inputs, hidden_size=hidden_size, batch_first=True)
         self.hidden_dim = hidden_size
         # self.bn1 = nn.BatchNorm1d(hidden_size)
         # self.bn1.weight.data.fill_(1)
@@ -83,7 +83,8 @@ class Policy(nn.Module):
         # x = self.bn0(x)
         # x, self.hidden = self.lstm(x, self.hidden)
         x, _ = self.lstm(x)
-        x = torch.tanh(x)
+        # print(x.shape)
+        x = torch.tanh(x[:, -1, :].unsqueeze(0))
         # x = F.tanh(self.linear2(x))
         V = self.V(x)
         mu = torch.tanh(self.mu(x))
@@ -92,10 +93,12 @@ class Policy(nn.Module):
         if u is not None:
             num_outputs = mu.size(2)
             L = self.L(x).view(-1, num_outputs, num_outputs)
+            print(L.shape)
             L = L * self.tril_mask.expand_as(L) + torch.exp(L) * self.diag_mask.expand_as(L)
             P = torch.bmm(L, L.transpose(2, 1))
 
             u_mu = u - mu
+            print(u_mu.shape, P.shape)
             A = -0.5 * torch.bmm(torch.bmm(u_mu, P), u_mu.transpose(2, 1))[:, :, 0]
 
             Q = A + V
@@ -146,13 +149,16 @@ class NAF:
         reward_batch = Variable(torch.cat(batch.reward))
         mask_batch = Variable(torch.cat(batch.mask))
         next_state_batch = Variable(torch.cat(batch.next_state))
+        action_batch = torch.unsqueeze(action_batch, 1)
         if is_cuda:
             state_batch = state_batch.cuda()
             action_batch = action_batch.cuda()
             reward_batch = reward_batch.cuda()
             mask_batch = mask_batch.cuda()
             next_state_batch = next_state_batch.cuda()
-
+        print(state_batch.shape)
+        print(next_state_batch.shape)
+        print(action_batch.shape)
         _, _, next_state_values = self.target_model((next_state_batch, None))
 
         reward_batch = reward_batch.unsqueeze(1)
