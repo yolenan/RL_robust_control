@@ -1,4 +1,5 @@
 import numpy as np
+from math import *
 
 SAMPLE_INTERVAL = 0.1
 SPEED_LIMIT = 20
@@ -8,6 +9,9 @@ ATTACKER_LIMIT = np.array([1, 1, 1, 1])  # 攻击阈值
 observation_space = 4
 action_space = 4
 vehicle_action_space = 4
+VMAX = 20
+VMIN = 0
+AMAX = 5
 
 """
 备份文件
@@ -46,6 +50,7 @@ class VehicleFollowingENV(object):
         self.vehicle_action_space = vehicle_action_space
         self.attacker_action_space = vehicle_action_space
         self.RC = 0
+        self.reward_mode = 0
 
     def reset(self):
         '''
@@ -69,7 +74,7 @@ class VehicleFollowingENV(object):
         '''
         # 权重归一化
         action_weight = action_weight + 1
-        action_weight = action_weight / (sum(action_weight) + 0.0001) # 避免除0
+        action_weight = action_weight / (sum(action_weight) + 0.0001)  # 避免除0
         # print(action_weight, action_attacker)
         # 传感器随机误差
         SSerror = np.random.randn(4) * self.sensor_error
@@ -114,9 +119,22 @@ class VehicleFollowingENV(object):
         else:
             is_done = False
         # reward 用
-        reward = 1/(self.d - self.d0) ** 2 * 10**3
+        if self.reward_mode == 0:
+            reward = 1 / (self.d - self.d0) ** 2 * 10 ** 3
+        elif self.reward_mode == 1:
+            factor = np.array([0.2, 0.3, 0.5])
+            r_v = log(100 * (self.v - VMIN) / (VMAX - VMIN) + 0.99, (VMAX - VMIN) / 2) - 1
+            r_a = (self.v_cal - self.v) / AMAX
+            if self.d0 < self.d < 30:
+                r_y = 1
+            elif 0 <= self.d <= self.d0:
+                r_y = -10
+            elif self.d >= 30:
+                r_y = -10
+            reward = (np.array([r_v, r_a, r_y]) * factor).sum()
 
         next_state = self.v_cal_raw
+        # print(action_weight, action_attacker)
         return next_state, reward, is_done
 
     def random_action(self):
@@ -136,9 +154,11 @@ if __name__ == '__main__':
     done = False
 
     i = 0
+    rewards = []
     while (not done and i < 1000):
         i = i + 1
-        a, b = env.random_action()
-        next_state, reward, done = env.step(a, b)
-        print(next_state)
+        next_state, reward, done = env.step(*env.random_action())
+        rewards.append(reward)
+        # print(next_state)
         print('R({:d}):{:<6.2f},  Real Distance:{:.2f} m.   '.format(i, reward, env.d))
+    print('total reward', sum(rewards))

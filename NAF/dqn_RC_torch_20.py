@@ -162,7 +162,7 @@ def fit_nash():
             # print(state_record[-1].shape)
 
             if done:
-                rewards.append(episode_reward / episode_steps)
+                rewards.append(episode_reward)
                 if i_episode % 100:
                     print('Episode {} ends, instant step-ave-reward is {:.4f}'.format(i_episode,
                                                                                       episode_reward / episode_steps))
@@ -247,9 +247,9 @@ def fit_nash():
                     print("{} % Episode finished, total numsteps: {}, eva-reward: {}, average reward: {}".format(
                         i_episode / args.num_episodes * 100,
                         total_numsteps,
-                        evaluate_reward / evaluate_steps,
+                        evaluate_reward,
                         average_reward))
-                    eva_reward.append(evaluate_reward / evaluate_steps)
+                    eva_reward.append(evaluate_reward)
                     ave_reward.append(average_reward)
                     # print(ac_v[0])
                     eva_ac_veh.append((ac_v[0] + 1) / sum(ac_v[0] + 1))
