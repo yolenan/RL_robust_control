@@ -50,7 +50,7 @@ class VehicleFollowingENV(object):
         self.vehicle_action_space = vehicle_action_space
         self.attacker_action_space = vehicle_action_space
         self.RC = 0
-        self.reward_mode = 0
+        self.reward_mode = 1
 
     def reset(self):
         '''
@@ -73,8 +73,11 @@ class VehicleFollowingENV(object):
         action_car  车辆速度
         '''
         # 权重归一化
-        action_weight = action_weight + 1
-        action_weight = action_weight / (sum(action_weight) + 0.0001)  # 避免除0
+        # print('weight_before', action_weight, sum(action_weight[0]))
+        action_weight = action_weight.clip(-1, 1) + 1
+        # print('weight_before', action_weight.shape)
+        action_weight = action_weight / (sum(action_weight[0]) + 0.000000001)  # 避免除0
+        # print('weight_after', action_weight)
         # print(action_weight, action_attacker)
         # 传感器随机误差
         SSerror = np.random.randn(4) * self.sensor_error
@@ -120,8 +123,13 @@ class VehicleFollowingENV(object):
             is_done = False
         # reward 用
         if self.reward_mode == 0:
-            reward = 1 / (self.d - self.d0) ** 2 * 10 ** 3
+            if (is_done):
+                reward = -10
+            else:
+                reward = -(self.d - self.d0) ** 2 / 100 ** 2
         elif self.reward_mode == 1:
+            reward = 1 / abs(self.d - self.d0)*10**0
+        elif self.reward_mode == 2:
             factor = np.array([0.2, 0.3, 0.5])
             r_v = log(100 * (self.v - VMIN) / (VMAX - VMIN) + 0.99, (VMAX - VMIN) / 2) - 1
             r_a = (self.v_cal - self.v) / AMAX

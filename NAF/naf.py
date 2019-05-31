@@ -141,15 +141,15 @@ class NAF:
             mu += ac_noise
         if is_cuda:
             mu = mu.cpu()
-        return mu.clamp(-1, 1)
+        return torch.clamp(mu, -1, 1)
 
     def update_parameters(self, batch):
         state_batch = Variable(torch.cat(batch.state))
         action_batch = Variable(torch.cat(batch.action))
         reward_batch = Variable(torch.cat(batch.reward))
         mask_batch = Variable(torch.cat(batch.mask))
-        next_state_batch = Variable(torch.cat(batch.next_state)).squeeze(1)
-        # action_batch = torch.unsqueeze(action_batch, 1)
+        next_state_batch = Variable(torch.cat(batch.next_state))
+        action_batch = torch.unsqueeze(action_batch, 1)
         if is_cuda:
             state_batch = state_batch.cuda()
             action_batch = action_batch.cuda()
