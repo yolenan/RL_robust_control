@@ -5,7 +5,7 @@ from tensorboardX import pytorch_graph
 from NAF.replay_memory import ReplayMemory, Transition
 import numpy as np
 import random
-from NAF.ENV_TODO import VehicleFollowingENV
+from NAF.ENV_TODO2 import VehicleFollowingENV
 from ounoise import OUNoise
 from NAF.Supervised_Learning import create_SL_model
 from param_noise import AdaptiveParamNoiseSpec, ddpg_distance_metric
@@ -44,8 +44,9 @@ parser.add_argument('--updates_per_step', type=int, default=5, metavar='N',
                     help='model updates per simulator step (default: 5)')
 parser.add_argument('--replay_size', type=int, default=1000000, metavar='N',
                     help='size of replay buffer (default: 1000000)')
-args = parser.parse_args()
+
 env = VehicleFollowingENV()
+args = parser.parse_args()
 print("""
 Environment Initializing...
 The initial head car velocity is {}
@@ -60,10 +61,10 @@ The Attack Mode is               {}
 ETA = 0.5
 
 def fit_nash():
-    reward_file = open('reward.txt', 'w')
-    attack_file = open('attacker_action.txt', 'w')
-    weight_file = open('vehicle_weight.txt', 'w')
-    distance_file = open('Distance.txt', 'w')
+    reward_file = open('reward_RC100_r1.txt', 'w')
+    attack_file = open('attacker_action_RC100_r1.txt', 'w')
+    weight_file = open('vehicle_weight_RC100_r1.txt', 'w')
+    distance_file = open('Distance_RC100_r1.txt', 'w')
 
     reward_file.write("""
 Environment Initializing...
@@ -193,7 +194,7 @@ The Attack Mode is               {}
                 updates += 1
 
         if i_episode % 10 == 0 and i_episode != 0:
-            distance_file.write('{} episode starts, recording distance...\n')
+            distance_file.write('{} episode starts, recording distance...\n'.format(i_episode))
             state = env.reset()
             evaluate_reward = 0
             while True:

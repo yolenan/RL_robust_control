@@ -5,6 +5,7 @@ import torch.nn as nn
 from torch.optim import Adam
 from torch.autograd import Variable
 import torch.nn.functional as F
+import os
 
 
 def MSELoss(input, target):
@@ -32,7 +33,6 @@ class Policy(nn.Module):
         # self.bn0.bias.data.fill_(0)
 
         self.linear1 = nn.Linear(num_inputs, hidden_size)
-        # self.emedbing=
         self.lstm = nn.LSTM(num_inputs, hidden_size=hidden_size, batch_first=True)
         # self.bn1 = nn.BatchNorm1d(hidden_size)
         # self.bn1.weight.data.fill_(1)
@@ -149,3 +149,25 @@ class NAF:
     def load_model(self, model_path):
         print('Loading model from {}'.format(model_path))
         self.model.load_state_dict(torch.load(model_path))
+
+
+if __name__ == '__main__':
+    from torchviz import make_dot
+    import numpy as np
+    # model = Policy(128,4,4)
+    # state = np.random.random(4)
+    # state = torch.Tensor([[state]])
+    # make_dot(model((Variable(state), None)), params=dict(model.named_parameters()))
+    import torch
+    from torch import nn
+    from torchviz import make_dot
+
+    model = nn.Sequential()
+    model.add_module('W0', nn.Linear(8, 16))
+    model.add_module('tanh', nn.Tanh())
+    model.add_module('W1', nn.Linear(16, 1))
+
+    x = torch.randn(1, 8)
+
+    vis_graph = make_dot(model(x), params=dict(model.named_parameters()))
+    vis_graph.view()

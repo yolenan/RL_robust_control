@@ -12,7 +12,8 @@ action_space = 4
 vehicle_action_space = 4
 AMAX = 5
 ATTACK_MODE = 1
-REWARD_MODE = 2
+REWARD_MODE = 1
+RC = 100
 """
 备份文件
 """
@@ -47,7 +48,7 @@ class VehicleFollowingENV(object):
         self.observation_space = observation_space
         self.vehicle_action_space = vehicle_action_space
         self.attacker_action_space = vehicle_action_space
-        self.RC = 0
+        self.RC = RC
         self.reward_mode = REWARD_MODE
         self.attack_mode = ATTACK_MODE
 

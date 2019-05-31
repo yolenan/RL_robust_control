@@ -44,8 +44,9 @@ parser.add_argument('--updates_per_step', type=int, default=5, metavar='N',
                     help='model updates per simulator step (default: 5)')
 parser.add_argument('--replay_size', type=int, default=1000000, metavar='N',
                     help='size of replay buffer (default: 1000000)')
-args = parser.parse_args()
+
 env = VehicleFollowingENV()
+args = parser.parse_args()
 print("""
 Environment Initializing...
 The initial head car velocity is {}
@@ -60,10 +61,10 @@ The Attack Mode is               {}
 ETA = 0.5
 
 def fit_nash():
-    reward_file = open('reward.txt', 'w')
-    attack_file = open('attacker_action.txt', 'w')
-    weight_file = open('vehicle_weight.txt', 'w')
-    distance_file = open('Distance.txt', 'w')
+    reward_file = open('reward_RC100.txt', 'w')
+    attack_file = open('attacker_action_RC100.txt', 'w')
+    weight_file = open('vehicle_weight_RC100.txt', 'w')
+    distance_file = open('Distance_RC100.txt', 'w')
 
     reward_file.write("""
 Environment Initializing...
