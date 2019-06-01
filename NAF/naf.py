@@ -28,13 +28,14 @@ def hard_update(target, source):
 
 class Policy(nn.Module):
 
-    def __init__(self, hidden_size, num_inputs, action_space):
+    def __init__(self, hidden_size, num_inputs, action_space, mode):
         super(Policy, self).__init__()
         self.action_space = action_space
         num_outputs = action_space
         # self.bn0 = nn.BatchNorm1d(num_inputs)
         # self.bn0.weight.data.fill_(1)
         # self.bn0.bias.data.fill_(0)
+        self.mode = mode
 
         self.linear1 = nn.Linear(num_inputs, hidden_size)
         # self.emedbing=
@@ -87,7 +88,10 @@ class Policy(nn.Module):
         x = torch.tanh(x[:, -1, :].unsqueeze(0))
         # x = F.tanh(self.linear2(x))
         V = self.V(x)
-        mu = torch.tanh(self.mu(x))
+        if self.mode == 'att':
+            mu = torch.tanh(self.mu(x))
+        elif self.mode == 'veh':
+            mu = torch.sigmoid(self.mu(x))
 
         Q = None
         if u is not None:
@@ -108,12 +112,12 @@ class Policy(nn.Module):
 
 class NAF:
 
-    def __init__(self, gamma, tau, hidden_size, num_inputs, action_space):
+    def __init__(self, gamma, tau, hidden_size, num_inputs, action_space, mode):
         self.action_space = action_space
         self.num_inputs = num_inputs
-
-        self.model = Policy(hidden_size, num_inputs, action_space)
-        self.target_model = Policy(hidden_size, num_inputs, action_space)
+        self.mode = mode
+        self.model = Policy(hidden_size, num_inputs, action_space, mode)
+        self.target_model = Policy(hidden_size, num_inputs, action_space, mode)
         self.optimizer = Adam(self.model.parameters(), lr=1e-3)
 
         self.gamma = gamma
@@ -141,7 +145,10 @@ class NAF:
             mu += ac_noise
         if is_cuda:
             mu = mu.cpu()
-        return torch.clamp(mu, -1, 1)
+        if self.mode == 'att':
+            return mu.clamp(-1, 1)
+        elif self.mode == 'veh':
+            return mu.clamp(0, 1)
 
     def update_parameters(self, batch):
         state_batch = Variable(torch.cat(batch.state))

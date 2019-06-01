@@ -50,6 +50,7 @@ parser.add_argument('--replay_size', type=int, default=1000000, metavar='N',
                     help='size of replay buffer (default: 1000000)')
 args = parser.parse_args()
 env = VehicleFollowingENV()
+ATTACKER_LIMIT = env.ATTACKER_LIMIT
 print("""
 Environment Initializing...
 The initial head car velocity is {}
@@ -64,12 +65,12 @@ ETA = 0.5
 
 def fit_nash():
     agent_vehicle = NAF(args.gamma, args.tau, args.hidden_size,
-                        env.observation_space, env.vehicle_action_space)
+                        env.observation_space, env.vehicle_action_space, mode='veh')
     agent_attacker = NAF(args.gamma, args.tau, args.hidden_size,
-                         env.observation_space, env.attacker_action_space)
+                         env.observation_space, env.attacker_action_space, mode='att')
 
-    policy_vehicle = create_SL_model(env.observation_space, env.vehicle_action_space)
-    policy_attacker = create_SL_model(env.observation_space, env.attacker_action_space)
+    policy_vehicle = create_SL_model(env.observation_space, env.vehicle_action_space, mode='veh')
+    policy_attacker = create_SL_model(env.observation_space, env.attacker_action_space, mode='att')
 
     memory_vehicle = ReplayMemory(1000000)
     memory_attacker = ReplayMemory(1000000)
@@ -92,7 +93,7 @@ def fit_nash():
     ave_reward = []
     tra_ac_veh = []
     tra_ac_att = []
-    All_reward=[]
+    All_reward = []
     total_numsteps = 0
     updates = 0
     state_record = [env.reset()]
@@ -130,6 +131,7 @@ def fit_nash():
                 action_attacker = agent_attacker.select_action(torch.Tensor(state_record[-20:]), ounoise_attacker,
                                                                param_noise_attacker)[:, -1, :]
                 # print('rl', action_vehicle.shape)
+                # print('RL', action_vehicle, action_attacker)
             else:
                 action_vehicle = torch.Tensor(
                     [policy_vehicle.predict(state_record[-1].reshape(-1, 4)) / policy_vehicle.predict(
@@ -137,12 +139,13 @@ def fit_nash():
                 action_attacker = torch.Tensor(
                     [policy_attacker.predict(state_record[-1].reshape(-1, 4)) / policy_attacker.predict(
                         state_record[-1].reshape(-1, 4)).sum()])[0]
+                # print('SL', action_vehicle, action_attacker)
                 # print('sl', action_vehicle.shape)
                 # print('sl', action_vehicle.shape)
-            if is_cuda:
-                ac_v, ac_a = action_vehicle.cpu().numpy(), action_attacker.cpu().numpy()[0]
-            else:
-                ac_v, ac_a = action_vehicle.numpy(), action_attacker.numpy()
+            ac_v, ac_a = action_vehicle.numpy(), action_attacker.numpy()
+            ac_v = ac_v / (sum(ac_v[0]) + 0.000000001)
+            ac_a = ac_a.clip(-1, 1)
+            # print(ac_v, ac_a)
             next_state, reward, done = env.step(ac_v, ac_a)
             # print('tra_reward', reward)
             # print(np.shape(state_record), next_state[0].shape)
@@ -249,6 +252,8 @@ def fit_nash():
                         state_record[-1].reshape(-1, 4)) / policy_attacker.predict(
                         state_record[-1].reshape(-1, 4)).sum()])[0]
                 ac_v, ac_a = action_vehicle.numpy(), action_attacker.numpy()
+                ac_v = ac_v / (sum(ac_v[0]) + 0.000000001)
+                ac_a = ac_a.clip(-1, 1)
                 next_state, reward, done = env.step(ac_v, ac_a)
                 real_ac_v = ac_v[0].clip(-1, 1) + 1
                 tra_ac_veh.append(real_ac_v / (sum(real_ac_v) + 0.0000001))

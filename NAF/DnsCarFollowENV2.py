@@ -19,6 +19,7 @@ AMAX = 5
 
 
 class VehicleFollowingENV(object):
+    ATTACKER_LIMIT = np.array([1, 1, 1, 1])
 
     def __init__(self):
         '''
@@ -31,8 +32,8 @@ class VehicleFollowingENV(object):
         sample_interval: 采样时间, 单位: s
         a_head: 前车加速度
         '''
-        self.sensor_error = np.array([0.1, 0.1, 0.1, 0.1])  # 传感器误差高斯噪声
-        self.lam = 0.02  # 控制量, reaction parameter
+        self.sensor_error = np.array([0, 0, 0, 0])  # 传感器误差高斯噪声
+        self.lam = 1  # 控制量, reaction parameter
         self.d0 = np.random.randint(10, 30)  # 初始距离
         self.d = self.d0  # 实时距离
         self.init_v = np.random.random() * SPEED_LIMIT
@@ -60,6 +61,7 @@ class VehicleFollowingENV(object):
         v:      自车速度
         '''
         self.d = self.d0
+        self.step_number = 0
         self.v_cal_raw = self.init_v * np.ones(4)
         return self.v_cal_raw
 
@@ -74,13 +76,14 @@ class VehicleFollowingENV(object):
         '''
         # 权重归一化
         # print('weight_before', action_weight, sum(action_weight[0]))
-        action_weight = action_weight.clip(-1, 1) + 1
+        # action_weight = action_weight.clip(-1, 1) + 1
         # print('weight_before', action_weight.shape)
-        action_weight = action_weight / (sum(action_weight[0]) + 0.000000001)  # 避免除0
+        # action_weight = action_weight / (sum(action_weight[0]) + 0.000000001)  # 避免除0
         # print('weight_after', action_weight)
         # print(action_weight, action_attacker)
         # 传感器随机误差
-        SSerror = np.random.randn(4) * self.sensor_error
+        # SSerror = np.random.randn(4) * self.sensor_error
+        SSerror = np.zeros(4)  # 假设没有传感器误差
         # 更新前车原始数据
         self.v_cal_raw = self.v_head * np.ones(4) + action_weight * (SSerror + action_attacker)
         # print(self.v_cal_raw)
@@ -128,7 +131,10 @@ class VehicleFollowingENV(object):
             else:
                 reward = -(self.d - self.d0) ** 2 / 100 ** 2
         elif self.reward_mode == 1:
-            reward = 1 / abs(self.d - self.d0)*10**0
+            if abs(self.d - self.d0) < 1:
+                reward = 1
+            else:
+                reward = 1 / abs(self.d - self.d0) * 10 ** 0
         elif self.reward_mode == 2:
             factor = np.array([0.2, 0.3, 0.5])
             r_v = log(100 * (self.v - VMIN) / (VMAX - VMIN) + 0.99, (VMAX - VMIN) / 2) - 1
@@ -148,7 +154,7 @@ class VehicleFollowingENV(object):
     def random_action(self):
         weight = np.random.random(4)
         weight = weight / weight.sum()
-        attrack = np.random.randn(4) + 1
+        attrack = np.random.randn(4) * ATTACKER_LIMIT
         return weight, attrack
 
     def close(self):
