@@ -1,5 +1,5 @@
 import numpy as np
-from math import *
+from math import log
 
 SAMPLE_INTERVAL = 0.1
 VMAX = 30
@@ -12,7 +12,8 @@ action_space = 4
 vehicle_action_space = 4
 AMAX = 5
 ATTACK_MODE = 1
-REWARD_MODE = 2
+REWARD_MODE = 1
+RC = 100
 """
 备份文件
 """
@@ -38,7 +39,7 @@ class VehicleFollowingENV(object):
         self.init_v = np.random.random() * (VMAX-VMIN) + VMIN
         self.v_head = self.init_v  # 前车速度
         self.v = self.v_head  # 自车速度
-        self.v_cal_raw = np.zeros(4)
+        self.v_cal_raw = np.array([0, 0, 0, 0])
         self.v_cal = 0
         self.sample_interval = SAMPLE_INTERVAL  # 采样间隔
         self.a_head = 0  # 前车加速度
@@ -47,10 +48,9 @@ class VehicleFollowingENV(object):
         self.observation_space = observation_space
         self.vehicle_action_space = vehicle_action_space
         self.attacker_action_space = vehicle_action_space
-        self.RC = 0
+        self.RC = RC
         self.reward_mode = REWARD_MODE
         self.attack_mode = ATTACK_MODE
-        self.reward_mode = 1
 
     def reset(self):
         '''
@@ -84,8 +84,7 @@ class VehicleFollowingENV(object):
         # 控制结果 公式1
         self.action_car = self.lam * (self.v_cal - self.v)
 
-    def step(self, action_weight=np.ones(4),
-             action_attacker=np.random.random(4)):  # =np.ones(4), action_attacker=np.zeros(4)):
+    def step(self, action_weight=np.ones(4), action_attacker=np.zeros(4)):  # =np.ones(4), action_attacker=np.zeros(4)):
         '''
         环境的步进, 输入攻击者和自车的权重动作，通过控制器, 返回新的Reward和观测值
         :param
@@ -146,29 +145,10 @@ class VehicleFollowingENV(object):
         # 距离方差形式的Reward
         if self.reward_mode == 1:
             reward = -(self.d - self.d0) ** 2 / 100**2
-        # reward 用
-        if self.reward_mode == 0:
-            if (is_done):
-                reward = -10
-            else:
-                reward = -(self.d - self.d0) ** 2 / 100 ** 2
-        elif self.reward_mode == 1:
-            reward = 1 / abs(self.d - self.d0)*10**0
-        elif self.reward_mode == 2:
-            factor = np.array([0.2, 0.3, 0.5])
-            r_v = log(100 * (self.v - VMIN) / (VMAX - VMIN) + 0.99, (VMAX - VMIN) / 2) - 1
-            r_a = (self.v_cal - self.v) / AMAX
-            if self.d0 < self.d < 30:
-                r_y = 1
-            elif 0 <= self.d <= self.d0:
-                r_y = -10
-            elif self.d >= 30:
-                r_y = -10
-            reward = (np.array([r_v, r_a, r_y]) * factor).sum()
 
         # Semi-Competitive Reward
         # r1 = a1*r_d + a2*r_v + a3*ra
-        elif self.reward_mode == 3:
+        elif self.reward_mode == 2:
             factor = np.array([0.2, 0.3, 0.5])
             r_v = log(100*(self.v - VMIN)/(VMAX-VMIN)+0.99, (VMAX-VMIN)/2) - 1
             r_a = (self.v_cal - self.v) / AMAX
@@ -183,14 +163,7 @@ class VehicleFollowingENV(object):
             reward = (np.array([r_v, r_a, r_y]) * factor).sum()
 
         next_state = self.v_cal_raw
-        # print(action_weight, action_attacker)
         return next_state, reward, is_done
-
-    def random_action(self):
-        weight = np.random.random(4)
-        weight = weight / weight.sum()
-        attrack = np.random.randn(4) + 1
-        return weight, attrack
 
     def close(self):
         return
@@ -203,11 +176,12 @@ if __name__ == '__main__':
     done = False
 
     i = 0
-    rewards = []
     while (not done and i < 1000):
         i = i + 1
-        next_state, reward, done = env.step(*env.random_action())
-        rewards.append(reward)
-        # print(next_state)
+        weight = np.random.random(4)
+        weight = weight / weight.sum()
+        attrack = np.random.randn(4) + 1
+
+        next_state, reward, done = env.step(weight, attrack)
         print('R({:d}):{:<6.2f},  Real Distance:{:.2f} m.   '.format(i, reward, env.d))
         print(next_state)

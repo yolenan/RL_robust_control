@@ -5,21 +5,17 @@ from tensorboardX import pytorch_graph
 from NAF.replay_memory import ReplayMemory, Transition
 import numpy as np
 import random
-from NAF.ENV_TODO import VehicleFollowingENV
+from NAF.ENV_TODO2 import VehicleFollowingENV
 from ounoise import OUNoise
 from NAF.Supervised_Learning import create_SL_model
 from param_noise import AdaptiveParamNoiseSpec, ddpg_distance_metric
 import argparse
 import os
-import matplotlib.pyplot as plt
-
 from matplotlib import pyplot as plt
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 torch.manual_seed(1234)
 np.random.seed(1234)
-# is_cuda = torch.cuda.is_available()
-is_cuda = False
 
 parser = argparse.ArgumentParser(description='PyTorch REINFORCE example')
 parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
@@ -27,7 +23,7 @@ parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
 parser.add_argument('--tau', type=float, default=0.001, metavar='G',
                     help='discount factor for model (default: 0.001)')
 parser.add_argument('--ou_noise', type=bool, default=True)
-parser.add_argument('--param_noise', type=bool, default=True)
+parser.add_argument('--param_noise', type=bool, default=False)
 parser.add_argument('--noise_scale', type=float, default=0.3, metavar='G',
                     help='initial noise scale (default: 0.3)')
 parser.add_argument('--final_noise_scale', type=float, default=0.3, metavar='G',
@@ -40,7 +36,7 @@ parser.add_argument('--batch_size', type=int, default=128, metavar='N',
                     help='batch size (default: 128)')
 parser.add_argument('--num_steps', type=int, default=100000, metavar='N',
                     help='max episode length (default: 1000)')
-parser.add_argument('--num_episodes', type=int, default=300, metavar='N',
+parser.add_argument('--num_episodes', type=int, default=1000, metavar='N',
                     help='number of episodes (default: 1000)')
 parser.add_argument('--hidden_size', type=int, default=128, metavar='N',
                     help='number of episodes (default: 128)')
@@ -48,8 +44,9 @@ parser.add_argument('--updates_per_step', type=int, default=5, metavar='N',
                     help='model updates per simulator step (default: 5)')
 parser.add_argument('--replay_size', type=int, default=1000000, metavar='N',
                     help='size of replay buffer (default: 1000000)')
-args = parser.parse_args()
+
 env = VehicleFollowingENV()
+args = parser.parse_args()
 print("""
 Environment Initializing...
 The initial head car velocity is {}
@@ -63,12 +60,11 @@ The Attack Mode is               {}
 
 ETA = 0.5
 
-
 def fit_nash():
-    reward_file = open('reward.txt', 'w')
-    attack_file = open('attacker_action.txt', 'w')
-    weight_file = open('vehicle_weight.txt', 'w')
-    distance_file = open('Distance.txt', 'w')
+    reward_file = open('reward_RC100_r1.txt', 'w')
+    attack_file = open('attacker_action_RC100_r1.txt', 'w')
+    weight_file = open('vehicle_weight_RC100_r1.txt', 'w')
+    distance_file = open('Distance_RC100_r1.txt', 'w')
 
     reward_file.write("""
 Environment Initializing...
@@ -83,6 +79,7 @@ The Attack Mode is               {}
                         env.observation_space, env.vehicle_action_space)
     agent_attacker = NAF(args.gamma, args.tau, args.hidden_size,
                          env.observation_space, env.attacker_action_space)
+
 
     policy_vehicle = create_SL_model(env.observation_space, env.vehicle_action_space)
     policy_attacker = create_SL_model(env.observation_space, env.attacker_action_space)
@@ -107,14 +104,11 @@ The Attack Mode is               {}
     rewards = []
     total_numsteps = 0
     updates = 0
-    # while len(state_record) < 20:
-    #     s, _, _ = env.step(env.random_action())
-    #     state_record.append(s)
     for i_episode in range(args.num_episodes):
         state = env.reset()
         if args.ou_noise:
             ounoise_vehicle.scale = (args.noise_scale - args.final_noise_scale) * max(0, args.exploration_end -
-                                                                                      i_episode) / args.exploration_end + args.final_noise_scale
+                                                                              i_episode) / args.exploration_end + args.final_noise_scale
             ounoise_vehicle.reset()
 
             ounoise_attacker.scale = (args.noise_scale - args.final_noise_scale) * max(0, args.exploration_end -
@@ -123,20 +117,9 @@ The Attack Mode is               {}
         episode_reward = 0
         while True:
             if random.random() < ETA:
-                action_vehicle = agent_vehicle.select_action(torch.Tensor([[state]]), ounoise_vehicle,
-                                                             param_noise_vehicle)
-                action_attacker = agent_attacker.select_action(torch.Tensor([[state]]), ounoise_attacker,
-                                                               param_noise_attacker)
+                action_vehicle = agent_vehicle.select_action(torch.Tensor([[state]]), ounoise_vehicle, param_noise_vehicle)
+                action_attacker = agent_attacker.select_action(torch.Tensor([[state]]), ounoise_attacker, param_noise_attacker)
             else:
-                action_vehicle = torch.Tensor(
-                    [policy_vehicle.predict(state.reshape(-1, 4)) / policy_vehicle.predict(state.reshape(-1, 4)).sum()])
-                action_attacker = torch.Tensor([policy_attacker.predict(state.reshape(-1, 4)) / policy_attacker.predict(
-                    state.reshape(-1, 4)).sum()])
-            if is_cuda:
-                ac_v, ac_a = action_vehicle.cpu().numpy()[0], action_attacker.cpu().numpy()[0]
-            else:
-                ac_v, ac_a = action_vehicle.numpy()[0], action_attacker.numpy()[0]
-            next_state, reward, done = env.step(ac_v, ac_a)
                 action_vehicle = torch.Tensor([policy_vehicle.predict(state.reshape(-1, 4))/policy_vehicle.predict(state.reshape(-1, 4)).sum()])
                 action_attacker = torch.Tensor([policy_attacker.predict(state.reshape(-1, 4))/policy_attacker.predict(state.reshape(-1, 4)).sum()])
 
@@ -147,8 +130,8 @@ The Attack Mode is               {}
             total_numsteps += 1
             episode_reward += reward
 
-            memory_SL_vehicle.append(state, ac_v)
-            memory_SL_attacker.append(state, ac_a)
+            memory_SL_vehicle.append(state, action_vehicle.numpy()[0])
+            memory_SL_attacker.append(state, action_attacker.numpy()[0])
 
             action_vehicle = torch.Tensor(action_vehicle)
             action_attacker = torch.Tensor(action_attacker)
@@ -158,6 +141,7 @@ The Attack Mode is               {}
 
             reward_vehicle = torch.Tensor([reward])
             reward_attacker = torch.Tensor([env.RC - reward])
+
             memory_vehicle.push(torch.Tensor([[state]]), action_vehicle, mask, next_state, reward_vehicle)
             memory_attacker.push(torch.Tensor([[state]]), action_attacker, mask, next_state, reward_attacker)
 
@@ -165,20 +149,18 @@ The Attack Mode is               {}
 
             if done:
                 rewards.append(episode_reward)
-                if i_episode % 100:
+                if i_episode % 10:
                     print('Episode {} ends, instant reward is {:.2f}'.format(i_episode, episode_reward))
                     reward_file.write('Episode {} ends, instant reward is {:.2f}\n'.format(i_episode, episode_reward))
                 break
 
         if len(memory_vehicle) > args.batch_size:  # 开始训练
-            # print('begin training')
             for _ in range(args.updates_per_step):
                 transitions_vehicle = memory_vehicle.sample(args.batch_size)
                 batch_vehicle = Transition(*zip(*transitions_vehicle))
 
                 transitions_attacker = memory_attacker.sample(args.batch_size)
                 batch_attacker = Transition(*zip(*transitions_attacker))
-                print(batch_vehicle.shape)
 
                 trans_veh = memory_SL_vehicle.sample(args.batch_size)
                 trans_att = memory_SL_attacker.sample(args.batch_size)
@@ -198,8 +180,8 @@ The Attack Mode is               {}
 
                 states_veh = np.reshape(states_veh, (-1, env.observation_space))
                 states_att = np.reshape(states_att, (-1, env.observation_space))
-                actions_veh = np.reshape(actions_veh, (-1, env.vehicle_action_space))
-                actions_att = np.reshape(actions_att, (-1, env.attacker_action_space))
+                actions_veh =np.reshape(actions_veh, (-1, env.vehicle_action_space))
+                actions_att =np.reshape(actions_att, (-1, env.attacker_action_space))
 
                 policy_vehicle.fit(states_veh, actions_veh, verbose=False)
                 policy_attacker.fit(states_att, actions_att, verbose=False)
@@ -212,7 +194,7 @@ The Attack Mode is               {}
                 updates += 1
 
         if i_episode % 10 == 0 and i_episode != 0:
-            distance_file.write('{} episode starts, recording distance...\n')
+            distance_file.write('{} episode starts, recording distance...\n'.format(i_episode))
             state = env.reset()
             evaluate_reward = 0
             while True:
@@ -229,27 +211,11 @@ The Attack Mode is               {}
 
                 next_state, reward, done = env.step(action_vehicle.numpy()[0], action_attacker.numpy()[0])
                 distance_file.write('The distance is '+str(env.d)+'\n')
-                if is_cuda:
-                    ac_v, ac_a = action_vehicle.cpu().numpy()[0], action_attacker.cpu().numpy()[0]
-                else:
-                    ac_v, ac_a = action_vehicle.numpy()[0], action_attacker.numpy()[0]
-                next_state, reward, done = env.step(ac_v, ac_a)
-                total_numsteps += 1
                 evaluate_reward += reward
+
 
                 state = next_state[0]
                 if done:
-                    average_reward = np.mean(rewards[-10:])
-                    print("{} % Episode finished, total numsteps: {}, reward: {}, average reward: {}".format(
-                        i_episode / args.num_episodes * 100,
-                        total_numsteps,
-                        evaluate_reward,
-                        average_reward))
-                    eva_reward.append(evaluate_reward)
-                    ave_reward.append(average_reward)
-                    print(ac_v[0])
-                    eva_ac_veh.append((ac_v[0] + 1) / sum(ac_v[0] + 1))
-                    eva_ac_att.append((ac_a[0] + 1) / sum(ac_a[0] + 1))
                     print("Episode: {}, total numsteps: {}, reward: {}, average reward: {}".format(i_episode,
                                                                                                    total_numsteps,
                                                                                                    evaluate_reward,
@@ -259,7 +225,9 @@ The Attack Mode is               {}
                                                                                                    evaluate_reward,
                                                                                                    np.mean(rewards[-10:])))
                     break
-            # writer.add_scalar('reward/test', episode_reward, i_episode)
+                # writer.add_scalar('reward/test', episode_reward, i_episode)
+
+
     env.close()
     reward_file.close()
     attack_file.close()

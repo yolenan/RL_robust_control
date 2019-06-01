@@ -6,10 +6,12 @@ from torch.optim import Adam
 from torch.autograd import Variable
 import torch.nn.functional as F
 import torch.autograd as autograd
+import os
 
 is_cuda = torch.cuda.is_available()
 # is_cuda = False
 torch.backends.cudnn.enabled = False
+
 
 
 def MSELoss(input, target):
@@ -37,7 +39,6 @@ class Policy(nn.Module):
         # self.bn0.bias.data.fill_(0)
 
         self.linear1 = nn.Linear(num_inputs, hidden_size)
-        # self.emedbing=
         self.lstm = nn.LSTM(input_size=num_inputs, num_layers=2, hidden_size=hidden_size, batch_first=True)
         self.hidden_dim = hidden_size
         # self.bn1 = nn.BatchNorm1d(hidden_size)
@@ -128,20 +129,13 @@ class NAF:
     def select_action(self, state, action_noise=None, param_noise=None):
         self.model.eval()
         # print(Variable(state))
-        if is_cuda:
-            V_s = Variable(state).cuda()
-            ac_noise = torch.Tensor(action_noise.noise()).cuda()
-        else:
-            V_s = Variable(state)
-            ac_noise = torch.Tensor(action_noise.noise())
-        mu, _, _ = self.model((V_s, None))
+        mu, _, _ = self.model((Variable(state), None))
         self.model.train()
         mu = mu.data
         if action_noise is not None:
-            mu += ac_noise
-        if is_cuda:
-            mu = mu.cpu()
-        return torch.clamp(mu, -1, 1)
+            mu += torch.Tensor(action_noise.noise())
+
+        return mu.clamp(-1, 1)
 
     def update_parameters(self, batch):
         state_batch = Variable(torch.cat(batch.state))
@@ -191,3 +185,24 @@ class NAF:
     def load_model(self, model_path):
         print('Loading model from {}'.format(model_path))
         self.model.load_state_dict(torch.load(model_path))
+
+if __name__ == '__main__':
+    from torchviz import make_dot
+    import numpy as np
+    # model = Policy(128,4,4)
+    # state = np.random.random(4)
+    # state = torch.Tensor([[state]])
+    # make_dot(model((Variable(state), None)), params=dict(model.named_parameters()))
+    import torch
+    from torch import nn
+    from torchviz import make_dot
+
+    model = nn.Sequential()
+    model.add_module('W0', nn.Linear(8, 16))
+    model.add_module('tanh', nn.Tanh())
+    model.add_module('W1', nn.Linear(16, 1))
+
+    x = torch.randn(1, 8)
+
+    vis_graph = make_dot(model(x), params=dict(model.named_parameters()))
+    vis_graph.view()
