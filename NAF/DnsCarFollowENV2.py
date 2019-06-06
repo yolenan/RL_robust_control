@@ -1,10 +1,10 @@
 import numpy as np
 from math import *
 
-SAMPLE_INTERVAL = 0.1
+SAMPLE_INTERVAL = 1
 SPEED_LIMIT = 20
 ACC_MODE = 0
-UPPER_BOUND = 100
+UPPER_BOUND = 5
 ATTACKER_LIMIT = np.array([1, 1, 1, 1])  # 攻击阈值
 observation_space = 4
 action_space = 4
@@ -34,15 +34,14 @@ class VehicleFollowingENV(object):
         '''
         self.sensor_error = np.array([0, 0, 0, 0])  # 传感器误差高斯噪声
         self.lam = 1  # 控制量, reaction parameter
-        self.d0 = np.random.randint(10, 30)  # 初始距离
+        # self.d0 = np.random.randint(10, 30)  # 初始距离
+        self.d0 = 25
         self.d = self.d0  # 实时距离
         self.init_v = np.random.random() * SPEED_LIMIT
         self.v_head = self.init_v  # 前车速度
         self.v = self.v_head  # 自车速度
         self.v_cal_raw = np.zeros(4)
         self.v_cal = 0
-        self.T = 10
-        self.epsilon = 0.01
         self.sample_interval = SAMPLE_INTERVAL  # 采样间隔
         self.a_head = 0  # 前车加速度
         self.action_car = 0  # 自身加速度
@@ -51,7 +50,8 @@ class VehicleFollowingENV(object):
         self.vehicle_action_space = vehicle_action_space
         self.attacker_action_space = vehicle_action_space
         self.RC = 0
-        self.reward_mode = 1
+        self.reward_mode = 3
+        self.attack_mode = 3
 
     def reset(self):
         '''
@@ -93,8 +93,8 @@ class VehicleFollowingENV(object):
         # 控制结果 公式1
         self.action_car = self.lam * (self.v_cal - self.v)
 
-    def step(self, action_weight=np.ones(4),
-             action_attacker=np.random.random(4)):  # =np.ones(4), action_attacker=np.zeros(4)):
+    def step(self, action_weight=np.array([np.zeros(4)]),
+             action_attacker=np.array([np.random.random(4)])):  # =np.ones(4), action_attacker=np.zeros(4)):
         '''
         环境的步进, 输入攻击者和自车的权重动作，通过控制器, 返回新的Reward和观测值
         :param
@@ -108,6 +108,26 @@ class VehicleFollowingENV(object):
         '''
         # 更新步数
         self.step_number = self.step_number + 1
+        # 在环境中限制Attacker
+        # print(action_attacker)
+        [a0, a1, a2, a3] = action_attacker[0]
+        # a0 = 1 if a0 > 1 else a0
+        # a0 = -1 if a0 < -1 else a0
+        # a1 = 1 if a1 > 1 else a1
+        # a1 = -1 if a1 < -1 else a1
+        # a2 = 0.5 if a2 > 0.5 else a2
+        # a2 = -0.5 if a2 < -0.5 else a2
+        # a3 = 1.5 if a3 > 1.5 else a3
+        # a3 = -1.5 if a3 < -1.5 else a3
+        if self.attack_mode == 0:
+            # 攻击a1
+            action_attacker = np.array([[a0, 0, 0, 0]])
+        elif self.attack_mode == 1:
+            # 攻击a2和a3
+            action_attacker = np.array([[0, 0, a2, a3]])
+        else:
+            # 全部攻击
+            action_attacker = np.array([[a0, a1, a2, a3]])
         # 更新控制
         self.control(action_weight, action_attacker)
         # 前车行驶距离(保留没有变)
@@ -120,7 +140,7 @@ class VehicleFollowingENV(object):
         self.v_head = self.v_head + self.a_head * self.sample_interval
         self.v = self.v + self.action_car * self.sample_interval
         # 返回结果
-        if self.d <= 1 or self.d >= UPPER_BOUND or self.step_number > 100000000:
+        if self.d <= self.d0 - UPPER_BOUND or self.d >= self.d0 + UPPER_BOUND or self.step_number > 100000000:
             is_done = True
         else:
             is_done = False
@@ -133,6 +153,8 @@ class VehicleFollowingENV(object):
         elif self.reward_mode == 1:
             if abs(self.d - self.d0) < 1:
                 reward = 1
+            elif done:
+                reward = -1
             else:
                 reward = 1 / abs(self.d - self.d0) * 10 ** 0
         elif self.reward_mode == 2:
@@ -146,6 +168,9 @@ class VehicleFollowingENV(object):
             elif self.d >= 30:
                 r_y = -10
             reward = (np.array([r_v, r_a, r_y]) * factor).sum()
+        elif self.reward_mode == 3:
+            delta_d = abs(self.d - self.d0)
+            reward = (delta_d - UPPER_BOUND) ** 2 / 10 ** 1
 
         next_state = self.v_cal_raw
         # print(action_weight, action_attacker)
@@ -154,8 +179,8 @@ class VehicleFollowingENV(object):
     def random_action(self):
         weight = np.random.random(4)
         weight = weight / weight.sum()
-        attrack = np.random.randn(4) * ATTACKER_LIMIT
-        return weight, attrack
+        attack = np.random.randn(4) * ATTACKER_LIMIT
+        return np.array([weight]), np.array([attack])
 
     def close(self):
         return
@@ -164,15 +189,23 @@ class VehicleFollowingENV(object):
 if __name__ == '__main__':
     env = VehicleFollowingENV()
 
-    v_observe = env.reset()
+    # v_observe = env.reset()
     done = False
 
     i = 0
     rewards = []
-    while (not done and i < 1000):
+    done_count = 0
+    while (i < 1000):
         i = i + 1
+        if done:
+            v_observe = env.reset()
+            done = False
+            print('Episode reward {}'.format(sum(rewards)))
+            done_count += 1
+            rewards = []
         next_state, reward, done = env.step(*env.random_action())
+
         rewards.append(reward)
         # print(next_state)
-        print('R({:d}):{:<6.2f},  Real Distance:{:.2f} m.   '.format(i, reward, env.d))
-    print('total reward', sum(rewards))
+        print('R({:d}):{:<6.2f},  Real Distance:{:.2f} m.  Done:{} '.format(i, reward, env.d, done))
+    print('Done num', done_count)

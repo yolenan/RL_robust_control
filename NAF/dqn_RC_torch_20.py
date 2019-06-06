@@ -40,7 +40,7 @@ parser.add_argument('--batch_size', type=int, default=128, metavar='N',
                     help='batch size (default: 128)')
 parser.add_argument('--num_steps', type=int, default=100000, metavar='N',
                     help='max episode length (default: 1000)')
-parser.add_argument('--num_episodes', type=int, default=150, metavar='N',
+parser.add_argument('--num_episodes', type=int, default=1000, metavar='N',
                     help='number of episodes (default: 1000)')
 parser.add_argument('--hidden_size', type=int, default=128, metavar='N',
                     help='number of episodes (default: 128)')
@@ -95,8 +95,7 @@ def fit_nash():
     tra_ac_att = []
     All_reward = []
     total_numsteps = 0
-    updates = 0
-    state_record = [env.reset()]
+    updates = 0git
     # while len(state_record) < 20:
     #     s, _, _ = env.step(*env.random_action())
     #     state_record.append(s)
@@ -104,11 +103,13 @@ def fit_nash():
     for i_episode in range(args.num_episodes):
         local_steps = 0
         state = env.reset()
+        # state_record = [np.array([state])]
         state_record = [np.array([state])]
         episode_steps = 0
         while len(state_record) < 20:
             a, b = env.random_action()
-            s, _, _ = env.step(np.array([a]), np.array([b]))
+            # s, _, _ = env.step(np.array([a]), np.array([b]))
+            s, _, _ = env.step()
             local_steps += 1
             state_record.append(s)
         if args.ou_noise:
@@ -134,17 +135,15 @@ def fit_nash():
                 # print('RL', action_vehicle, action_attacker)
             else:
                 action_vehicle = torch.Tensor(
-                    [policy_vehicle.predict(state_record[-1].reshape(-1, 4)) / policy_vehicle.predict(
-                        state_record[-1].reshape(-1, 4)).sum()])[0]
+                    [policy_vehicle.predict(state_record[-1].reshape(-1, 4))])[0]
                 action_attacker = torch.Tensor(
-                    [policy_attacker.predict(state_record[-1].reshape(-1, 4)) / policy_attacker.predict(
-                        state_record[-1].reshape(-1, 4)).sum()])[0]
+                    [policy_attacker.predict(state_record[-1].reshape(-1, 4))])[0]
                 # print('SL', action_vehicle, action_attacker)
                 # print('sl', action_vehicle.shape)
                 # print('sl', action_vehicle.shape)
             ac_v, ac_a = action_vehicle.numpy(), action_attacker.numpy()
             ac_v = ac_v / (sum(ac_v[0]) + 0.000000001)
-            ac_a = ac_a.clip(-1, 1)
+            # ac_a = ac_a.clip(-1, 1)
             # print(ac_v, ac_a)
             next_state, reward, done = env.step(ac_v, ac_a)
             # print('tra_reward', reward)
@@ -230,8 +229,9 @@ def fit_nash():
             state = env.reset()
             state_record = [np.array([state])]
             while len(state_record) < 20:
-                a, b = env.random_action()
-                s, _, _ = env.step(np.array([a]), np.array([b]))
+                # a, b = env.random_action()
+                # s, _, _ = env.step(np.array([a]), np.array([b]))
+                s, _, _ = env.step()
                 local_steps += 1
                 state_record.append(s)
             evaluate_reward = 0
@@ -284,8 +284,8 @@ def fit_nash():
     df2 = pd.DataFrame()
     df2['Weight'] = pd.Series(tra_ac_veh)
     df2['Attack'] = pd.Series(tra_ac_att)
-    df.to_csv('./Result/reward_result_30.csv', index=None)
-    df2.to_csv('./Result/action_result_30.csv', index=None)
+    df.to_csv('./Result/reward_result_0602.csv', index=None)
+    df2.to_csv('./Result/action_result_0602.csv', index=None)
     # np.savetxt('./Result/eva_result.csv', eva_reward, delimiter=',')
     # np.savetxt('./Result/ave_result.csv', ave_reward, delimiter=',')
 
@@ -313,7 +313,7 @@ def fit_nash():
     # plt.plot(ave_reward, label='Tra_ave_reward')
     # plt.title('')
     plt.legend()
-    plt.savefig('./Result/Att_result_30.png', ppi=300)
+    plt.savefig('./Result/Att_result_0602.png', ppi=300)
     plt.show()
 
 

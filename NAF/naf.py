@@ -73,11 +73,11 @@ class Policy(nn.Module):
 
     def init_hidden(self):
         if is_cuda:
-            return (autograd.Variable(torch.zeros(1, 128, self.hidden_dim).cuda()),
-                    autograd.Variable(torch.zeros(1, 128, self.hidden_dim)).cuda())
+            return (autograd.Variable(torch.zeros(1, 1, self.hidden_dim).cuda()),
+                    autograd.Variable(torch.zeros(1, 1, self.hidden_dim)).cuda())
         else:
-            return (autograd.Variable(torch.zeros(1, 128, self.hidden_dim)),
-                    autograd.Variable(torch.zeros(1, 128, self.hidden_dim)))
+            return (autograd.Variable(torch.zeros(1, 1, self.hidden_dim)),
+                    autograd.Variable(torch.zeros(1, 1, self.hidden_dim)))
 
     def forward(self, inputs):
         x, u = inputs
@@ -145,10 +145,11 @@ class NAF:
             mu += ac_noise
         if is_cuda:
             mu = mu.cpu()
-        if self.mode == 'att':
-            return mu.clamp(-1, 1)
-        elif self.mode == 'veh':
-            return mu.clamp(0, 1)
+        return mu
+        # if self.mode == 'att':
+        #     return mu.clamp(-1, 1)
+        # elif self.mode == 'veh':
+        #     return mu.clamp(0, 1)
 
     def update_parameters(self, batch):
         state_batch = Variable(torch.cat(batch.state))
