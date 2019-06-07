@@ -1,5 +1,6 @@
 import numpy as np
 from math import *
+from scipy.optimize import minimize
 
 SAMPLE_INTERVAL = 1
 SPEED_LIMIT = 20
@@ -10,6 +11,8 @@ observation_space = 4
 action_space = 4
 vehicle_action_space = 4
 VMAX = 20
+import matplotlib.pyplot as plt
+
 VMIN = 0
 AMAX = 5
 
@@ -51,6 +54,7 @@ class VehicleFollowingENV(object):
         self.attacker_action_space = vehicle_action_space
         self.RC = 0
         self.reward_mode = 3
+        self.defend_mode = 0
         self.attack_mode = 3
 
     def reset(self):
@@ -65,6 +69,14 @@ class VehicleFollowingENV(object):
         self.v_cal_raw = self.init_v * np.ones(4)
         return self.v_cal_raw
 
+    def func(self, args):
+        fun = lambda x: abs(np.dot(x, args))
+        return fun
+
+    def con(self, args):
+        cons = ({'type': 'eq', 'fun': lambda x: np.dot(x, args) - 1})
+        return cons
+
     def control(self, action_weight=np.ones(4), action_attacker=np.zeros(4)):
         '''
         :param
@@ -74,27 +86,27 @@ class VehicleFollowingENV(object):
         :return:
         action_car  车辆速度
         '''
-        # 权重归一化
-        # print('weight_before', action_weight, sum(action_weight[0]))
-        # action_weight = action_weight.clip(-1, 1) + 1
-        # print('weight_before', action_weight.shape)
-        # action_weight = action_weight / (sum(action_weight[0]) + 0.000000001)  # 避免除0
-        # print('weight_after', action_weight)
-        # print(action_weight, action_attacker)
         # 传感器随机误差
         # SSerror = np.random.randn(4) * self.sensor_error
         SSerror = np.zeros(4)  # 假设没有传感器误差
         # 更新前车原始数据
         self.v_cal_raw = self.v_head * np.ones(4) + action_weight * (SSerror + action_attacker)
-        # print(self.v_cal_raw)
         # 前车的估计车速 公式7
+        if self.defend_mode == 1:
+            args = action_attacker[0]
+            args1 = np.ones(4)
+            x0 = np.array([0.25, 0.25, 0.25, 0.25])
+            cons = self.con(args1)
+            res = minimize(self.func(args), x0, bounds=((0, None), (0, None), (0, None), (0, None)), method='SLSQP',
+                           constraints=cons)
+            print(res.x)
+            action_weight = np.array([res.x])
         self.v_cal = self.v_head + np.sum(action_weight * (SSerror + action_attacker))
-
         # 控制结果 公式1
         self.action_car = self.lam * (self.v_cal - self.v)
 
-    def step(self, action_weight=np.array([np.zeros(4)]),
-             action_attacker=np.array([np.random.random(4)])):  # =np.ones(4), action_attacker=np.zeros(4)):
+    def step(self, action_weight=np.array([np.ones(4)]),
+             action_attacker=np.array([np.zeros(4)])):  # =np.ones(4), action_attacker=np.zeros(4)):
         '''
         环境的步进, 输入攻击者和自车的权重动作，通过控制器, 返回新的Reward和观测值
         :param
@@ -140,7 +152,7 @@ class VehicleFollowingENV(object):
         self.v_head = self.v_head + self.a_head * self.sample_interval
         self.v = self.v + self.action_car * self.sample_interval
         # 返回结果
-        if self.d <= self.d0 - UPPER_BOUND or self.d >= self.d0 + UPPER_BOUND or self.step_number > 100000000:
+        if abs(self.d-self.d0) > UPPER_BOUND or self.step_number > 100000000:
             is_done = True
         else:
             is_done = False
@@ -170,11 +182,11 @@ class VehicleFollowingENV(object):
             reward = (np.array([r_v, r_a, r_y]) * factor).sum()
         elif self.reward_mode == 3:
             delta_d = abs(self.d - self.d0)
-            reward = (delta_d - UPPER_BOUND) ** 2 / 10 ** 1
+            reward = (delta_d - UPPER_BOUND) ** 2 / (UPPER_BOUND ** 2)
 
         next_state = self.v_cal_raw
         # print(action_weight, action_attacker)
-        return next_state, reward, is_done
+        return self.d, next_state, reward, is_done
 
     def random_action(self):
         weight = np.random.random(4)
@@ -194,18 +206,34 @@ if __name__ == '__main__':
 
     i = 0
     rewards = []
+    distance = []
     done_count = 0
-    while (i < 1000):
+    while (i < 10000):
         i = i + 1
+        d, next_state, reward, done = env.step(*env.random_action())
+        # d, next_state, reward, done = env.step()
+        rewards.append(reward)
+        distance.append(d)
         if done:
             v_observe = env.reset()
             done = False
             print('Episode reward {}'.format(sum(rewards)))
-            done_count += 1
             rewards = []
-        next_state, reward, done = env.step(*env.random_action())
-
-        rewards.append(reward)
+            # break
+            done_count += 1
         # print(next_state)
-        print('R({:d}):{:<6.2f},  Real Distance:{:.2f} m.  Done:{} '.format(i, reward, env.d, done))
+        # print('R({:d}):{:<6.2f},  Real Distance:{:.2f} m.  Done:{} '.format(i, reward, env.d, done))
+    print(done_count)
+    f = plt.figure()
+    plt.plot(rewards, label='Reward')
+    plt.xlabel('Step')
+    plt.ylabel('Reward')
+    plt.legend()
+    plt.show()
+    # plt.figure()
+    plt.plot(distance, label='Distance')
+    plt.xlabel('Step')
+    plt.ylabel('Distance/m')
+    plt.legend()
+    plt.show()
     print('Done num', done_count)

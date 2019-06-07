@@ -95,7 +95,7 @@ def fit_nash():
     tra_ac_att = []
     All_reward = []
     total_numsteps = 0
-    updates = 0git
+    updates = 0
     # while len(state_record) < 20:
     #     s, _, _ = env.step(*env.random_action())
     #     state_record.append(s)
@@ -109,14 +109,15 @@ def fit_nash():
         while len(state_record) < 20:
             a, b = env.random_action()
             # s, _, _ = env.step(np.array([a]), np.array([b]))
-            s, _, _ = env.step()
+            d, s, _, done = env.step()
+            if done:
+                s = env.reset()
             local_steps += 1
             state_record.append(s)
         if args.ou_noise:
             ounoise_vehicle.scale = (args.noise_scale - args.final_noise_scale) * max(0, args.exploration_end -
                                                                                       i_episode) / args.exploration_end + args.final_noise_scale
             ounoise_vehicle.reset()
-
             ounoise_attacker.scale = (args.noise_scale - args.final_noise_scale) * max(0, args.exploration_end -
                                                                                        i_episode) / args.exploration_end + args.final_noise_scale
             ounoise_attacker.reset()
@@ -124,64 +125,41 @@ def fit_nash():
         local_steps = 0
         while True:
             if random.random() < ETA:
-                # print(state_record[-20:])
-                # print('rl', torch.Tensor(state_record[-20:]).shape)
                 action_vehicle = agent_vehicle.select_action(torch.Tensor(state_record[-20:]), ounoise_vehicle,
                                                              param_noise_vehicle)[:, -1, :]
-                # print('rl', action_vehicle.shape)
                 action_attacker = agent_attacker.select_action(torch.Tensor(state_record[-20:]), ounoise_attacker,
                                                                param_noise_attacker)[:, -1, :]
-                # print('rl', action_vehicle.shape)
-                # print('RL', action_vehicle, action_attacker)
             else:
                 action_vehicle = torch.Tensor(
                     [policy_vehicle.predict(state_record[-1].reshape(-1, 4))])[0]
                 action_attacker = torch.Tensor(
                     [policy_attacker.predict(state_record[-1].reshape(-1, 4))])[0]
-                # print('SL', action_vehicle, action_attacker)
-                # print('sl', action_vehicle.shape)
-                # print('sl', action_vehicle.shape)
             ac_v, ac_a = action_vehicle.numpy(), action_attacker.numpy()
             ac_v = ac_v / (sum(ac_v[0]) + 0.000000001)
-            # ac_a = ac_a.clip(-1, 1)
-            # print(ac_v, ac_a)
-            next_state, reward, done = env.step(ac_v, ac_a)
-            # print('tra_reward', reward)
-            # print(np.shape(state_record), next_state[0].shape)
+            _, next_state, reward, done = env.step(ac_v, ac_a)
+            # print(ac_a, _)
+            # print(done)
             state_record.append(next_state)
             local_steps += 1
             total_numsteps += 1
             episode_steps += 1
             episode_reward += reward
-            # print('sl-mem',state.shape,ac_v.shape)
-            # print('sl state mem', state.shape, ac_a.shape)
             memory_SL_vehicle.append(state_record[-1], ac_v)
             memory_SL_attacker.append(state_record[-1], ac_a)
-
             action_vehicle = torch.Tensor(action_vehicle)
             action_attacker = torch.Tensor(action_attacker)
-
             mask = torch.Tensor([not done])
-
             prev_state = torch.Tensor(state_record[-20:]).transpose(0, 1)
             next_state = torch.Tensor([next_state])
-            # print(prev_state.shape, next_state.shape)
             reward_vehicle = torch.Tensor([reward])
             reward_attacker = torch.Tensor([env.RC - reward])
-            # print(state_record[-20:])
-            # print(torch.Tensor([state_record[-20:]]).shape)
             memory_vehicle.push(prev_state, action_vehicle, mask, next_state, reward_vehicle)
             memory_attacker.push(prev_state, action_attacker, mask, next_state, reward_attacker)
-
-            state = next_state.numpy()[0]
-            # print(state_record[-1].shape)
-
             if done:
                 rewards.append(episode_reward)
                 if i_episode % 100:
                     print('Episode {} ends, local_steps {}. total_steps {}, instant ave-reward is {:.4f}'.format(
                         i_episode, local_steps, total_numsteps, episode_reward))
-
                 break
 
         if len(memory_vehicle) > args.batch_size:  # 开始训练
@@ -231,7 +209,7 @@ def fit_nash():
             while len(state_record) < 20:
                 # a, b = env.random_action()
                 # s, _, _ = env.step(np.array([a]), np.array([b]))
-                s, _, _ = env.step()
+                _, s, _, _ = env.step()
                 local_steps += 1
                 state_record.append(s)
             evaluate_reward = 0
@@ -254,7 +232,7 @@ def fit_nash():
                 ac_v, ac_a = action_vehicle.numpy(), action_attacker.numpy()
                 ac_v = ac_v / (sum(ac_v[0]) + 0.000000001)
                 ac_a = ac_a.clip(-1, 1)
-                next_state, reward, done = env.step(ac_v, ac_a)
+                _, next_state, reward, done = env.step(ac_v, ac_a)
                 real_ac_v = ac_v[0].clip(-1, 1) + 1
                 tra_ac_veh.append(real_ac_v / (sum(real_ac_v) + 0.0000001))
                 tra_ac_att.append(ac_a[0])
