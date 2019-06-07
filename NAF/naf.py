@@ -6,12 +6,10 @@ from torch.optim import Adam
 from torch.autograd import Variable
 import torch.nn.functional as F
 import torch.autograd as autograd
-import os
 
 is_cuda = torch.cuda.is_available()
 # is_cuda = False
 torch.backends.cudnn.enabled = False
-
 
 
 def MSELoss(input, target):
@@ -30,15 +28,17 @@ def hard_update(target, source):
 
 class Policy(nn.Module):
 
-    def __init__(self, hidden_size, num_inputs, action_space):
+    def __init__(self, hidden_size, num_inputs, action_space, mode):
         super(Policy, self).__init__()
         self.action_space = action_space
         num_outputs = action_space
         # self.bn0 = nn.BatchNorm1d(num_inputs)
         # self.bn0.weight.data.fill_(1)
         # self.bn0.bias.data.fill_(0)
+        self.mode = mode
 
         self.linear1 = nn.Linear(num_inputs, hidden_size)
+        # self.emedbing=
         self.lstm = nn.LSTM(input_size=num_inputs, num_layers=2, hidden_size=hidden_size, batch_first=True)
         self.hidden_dim = hidden_size
         # self.bn1 = nn.BatchNorm1d(hidden_size)
@@ -73,11 +73,11 @@ class Policy(nn.Module):
 
     def init_hidden(self):
         if is_cuda:
-            return (autograd.Variable(torch.zeros(1, 128, self.hidden_dim).cuda()),
-                    autograd.Variable(torch.zeros(1, 128, self.hidden_dim)).cuda())
+            return (autograd.Variable(torch.zeros(1, 1, self.hidden_dim).cuda()),
+                    autograd.Variable(torch.zeros(1, 1, self.hidden_dim)).cuda())
         else:
-            return (autograd.Variable(torch.zeros(1, 128, self.hidden_dim)),
-                    autograd.Variable(torch.zeros(1, 128, self.hidden_dim)))
+            return (autograd.Variable(torch.zeros(1, 1, self.hidden_dim)),
+                    autograd.Variable(torch.zeros(1, 1, self.hidden_dim)))
 
     def forward(self, inputs):
         x, u = inputs
@@ -88,7 +88,10 @@ class Policy(nn.Module):
         x = torch.tanh(x[:, -1, :].unsqueeze(0))
         # x = F.tanh(self.linear2(x))
         V = self.V(x)
-        mu = torch.tanh(self.mu(x))
+        if self.mode == 'att':
+            mu = torch.tanh(self.mu(x))
+        elif self.mode == 'veh':
+            mu = torch.sigmoid(self.mu(x))
 
         Q = None
         if u is not None:
@@ -109,12 +112,12 @@ class Policy(nn.Module):
 
 class NAF:
 
-    def __init__(self, gamma, tau, hidden_size, num_inputs, action_space):
+    def __init__(self, gamma, tau, hidden_size, num_inputs, action_space, mode):
         self.action_space = action_space
         self.num_inputs = num_inputs
-
-        self.model = Policy(hidden_size, num_inputs, action_space)
-        self.target_model = Policy(hidden_size, num_inputs, action_space)
+        self.mode = mode
+        self.model = Policy(hidden_size, num_inputs, action_space, mode)
+        self.target_model = Policy(hidden_size, num_inputs, action_space, mode)
         self.optimizer = Adam(self.model.parameters(), lr=1e-3)
 
         self.gamma = gamma
@@ -129,13 +132,24 @@ class NAF:
     def select_action(self, state, action_noise=None, param_noise=None):
         self.model.eval()
         # print(Variable(state))
-        mu, _, _ = self.model((Variable(state), None))
+        if is_cuda:
+            V_s = Variable(state).cuda()
+            ac_noise = torch.Tensor(action_noise.noise()).cuda()
+        else:
+            V_s = Variable(state)
+            ac_noise = torch.Tensor(action_noise.noise())
+        mu, _, _ = self.model((V_s, None))
         self.model.train()
         mu = mu.data
         if action_noise is not None:
-            mu += torch.Tensor(action_noise.noise())
-
-        return mu.clamp(-1, 1)
+            mu += ac_noise
+        if is_cuda:
+            mu = mu.cpu()
+        return mu
+        # if self.mode == 'att':
+        #     return mu.clamp(-1, 1)
+        # elif self.mode == 'veh':
+        #     return mu.clamp(0, 1)
 
     def update_parameters(self, batch):
         state_batch = Variable(torch.cat(batch.state))
@@ -185,24 +199,3 @@ class NAF:
     def load_model(self, model_path):
         print('Loading model from {}'.format(model_path))
         self.model.load_state_dict(torch.load(model_path))
-
-if __name__ == '__main__':
-    from torchviz import make_dot
-    import numpy as np
-    # model = Policy(128,4,4)
-    # state = np.random.random(4)
-    # state = torch.Tensor([[state]])
-    # make_dot(model((Variable(state), None)), params=dict(model.named_parameters()))
-    import torch
-    from torch import nn
-    from torchviz import make_dot
-
-    model = nn.Sequential()
-    model.add_module('W0', nn.Linear(8, 16))
-    model.add_module('tanh', nn.Tanh())
-    model.add_module('W1', nn.Linear(16, 1))
-
-    x = torch.randn(1, 8)
-
-    vis_graph = make_dot(model(x), params=dict(model.named_parameters()))
-    vis_graph.view()

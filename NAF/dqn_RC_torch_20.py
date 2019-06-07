@@ -40,7 +40,7 @@ parser.add_argument('--batch_size', type=int, default=128, metavar='N',
                     help='batch size (default: 128)')
 parser.add_argument('--num_steps', type=int, default=100000, metavar='N',
                     help='max episode length (default: 1000)')
-parser.add_argument('--num_episodes', type=int, default=150, metavar='N',
+parser.add_argument('--num_episodes', type=int, default=1000, metavar='N',
                     help='number of episodes (default: 1000)')
 parser.add_argument('--hidden_size', type=int, default=128, metavar='N',
                     help='number of episodes (default: 128)')
@@ -50,6 +50,7 @@ parser.add_argument('--replay_size', type=int, default=1000000, metavar='N',
                     help='size of replay buffer (default: 1000000)')
 args = parser.parse_args()
 env = VehicleFollowingENV()
+ATTACKER_LIMIT = env.ATTACKER_LIMIT
 print("""
 Environment Initializing...
 The initial head car velocity is {}
@@ -64,12 +65,12 @@ ETA = 0.5
 
 def fit_nash():
     agent_vehicle = NAF(args.gamma, args.tau, args.hidden_size,
-                        env.observation_space, env.vehicle_action_space)
+                        env.observation_space, env.vehicle_action_space, mode='veh')
     agent_attacker = NAF(args.gamma, args.tau, args.hidden_size,
-                         env.observation_space, env.attacker_action_space)
+                         env.observation_space, env.attacker_action_space, mode='att')
 
-    policy_vehicle = create_SL_model(env.observation_space, env.vehicle_action_space)
-    policy_attacker = create_SL_model(env.observation_space, env.attacker_action_space)
+    policy_vehicle = create_SL_model(env.observation_space, env.vehicle_action_space, mode='veh')
+    policy_attacker = create_SL_model(env.observation_space, env.attacker_action_space, mode='att')
 
     memory_vehicle = ReplayMemory(1000000)
     memory_attacker = ReplayMemory(1000000)
@@ -92,10 +93,9 @@ def fit_nash():
     ave_reward = []
     tra_ac_veh = []
     tra_ac_att = []
-    All_reward=[]
+    All_reward = []
     total_numsteps = 0
     updates = 0
-    state_record = [env.reset()]
     # while len(state_record) < 20:
     #     s, _, _ = env.step(*env.random_action())
     #     state_record.append(s)
@@ -103,18 +103,21 @@ def fit_nash():
     for i_episode in range(args.num_episodes):
         local_steps = 0
         state = env.reset()
+        # state_record = [np.array([state])]
         state_record = [np.array([state])]
         episode_steps = 0
         while len(state_record) < 20:
             a, b = env.random_action()
-            s, _, _ = env.step(np.array([a]), np.array([b]))
+            # s, _, _ = env.step(np.array([a]), np.array([b]))
+            d, s, _, done = env.step()
+            if done:
+                s = np.array([env.reset()])
             local_steps += 1
             state_record.append(s)
         if args.ou_noise:
             ounoise_vehicle.scale = (args.noise_scale - args.final_noise_scale) * max(0, args.exploration_end -
                                                                                       i_episode) / args.exploration_end + args.final_noise_scale
             ounoise_vehicle.reset()
-
             ounoise_attacker.scale = (args.noise_scale - args.final_noise_scale) * max(0, args.exploration_end -
                                                                                        i_episode) / args.exploration_end + args.final_noise_scale
             ounoise_attacker.reset()
@@ -122,64 +125,41 @@ def fit_nash():
         local_steps = 0
         while True:
             if random.random() < ETA:
-                # print(state_record[-20:])
-                # print('rl', torch.Tensor(state_record[-20:]).shape)
                 action_vehicle = agent_vehicle.select_action(torch.Tensor(state_record[-20:]), ounoise_vehicle,
                                                              param_noise_vehicle)[:, -1, :]
-                # print('rl', action_vehicle.shape)
                 action_attacker = agent_attacker.select_action(torch.Tensor(state_record[-20:]), ounoise_attacker,
                                                                param_noise_attacker)[:, -1, :]
-                # print('rl', action_vehicle.shape)
             else:
                 action_vehicle = torch.Tensor(
-                    [policy_vehicle.predict(state_record[-1].reshape(-1, 4)) / policy_vehicle.predict(
-                        state_record[-1].reshape(-1, 4)).sum()])[0]
+                    [policy_vehicle.predict(state_record[-1].reshape(-1, 4))])[0]
                 action_attacker = torch.Tensor(
-                    [policy_attacker.predict(state_record[-1].reshape(-1, 4)) / policy_attacker.predict(
-                        state_record[-1].reshape(-1, 4)).sum()])[0]
-                # print('sl', action_vehicle.shape)
-                # print('sl', action_vehicle.shape)
-            if is_cuda:
-                ac_v, ac_a = action_vehicle.cpu().numpy(), action_attacker.cpu().numpy()[0]
-            else:
-                ac_v, ac_a = action_vehicle.numpy(), action_attacker.numpy()
-            next_state, reward, done = env.step(ac_v, ac_a)
-            # print('tra_reward', reward)
-            # print(np.shape(state_record), next_state[0].shape)
+                    [policy_attacker.predict(state_record[-1].reshape(-1, 4))])[0]
+            ac_v, ac_a = action_vehicle.numpy(), action_attacker.numpy()
+            ac_v = ac_v / (sum(ac_v[0]) + 0.000000001)
+            _, next_state, reward, done = env.step(ac_v, ac_a)
+            # print(ac_a, _)
+            # print(done)
             state_record.append(next_state)
             local_steps += 1
             total_numsteps += 1
             episode_steps += 1
             episode_reward += reward
-            # print('sl-mem',state.shape,ac_v.shape)
-            # print('sl state mem', state.shape, ac_a.shape)
             memory_SL_vehicle.append(state_record[-1], ac_v)
             memory_SL_attacker.append(state_record[-1], ac_a)
-
             action_vehicle = torch.Tensor(action_vehicle)
             action_attacker = torch.Tensor(action_attacker)
-
             mask = torch.Tensor([not done])
-
             prev_state = torch.Tensor(state_record[-20:]).transpose(0, 1)
             next_state = torch.Tensor([next_state])
-            # print(prev_state.shape, next_state.shape)
             reward_vehicle = torch.Tensor([reward])
             reward_attacker = torch.Tensor([env.RC - reward])
-            # print(state_record[-20:])
-            # print(torch.Tensor([state_record[-20:]]).shape)
             memory_vehicle.push(prev_state, action_vehicle, mask, next_state, reward_vehicle)
             memory_attacker.push(prev_state, action_attacker, mask, next_state, reward_attacker)
-
-            state = next_state.numpy()[0]
-            # print(state_record[-1].shape)
-
             if done:
                 rewards.append(episode_reward)
                 if i_episode % 100:
                     print('Episode {} ends, local_steps {}. total_steps {}, instant ave-reward is {:.4f}'.format(
                         i_episode, local_steps, total_numsteps, episode_reward))
-
                 break
 
         if len(memory_vehicle) > args.batch_size:  # 开始训练
@@ -227,8 +207,9 @@ def fit_nash():
             state = env.reset()
             state_record = [np.array([state])]
             while len(state_record) < 20:
-                a, b = env.random_action()
-                s, _, _ = env.step(np.array([a]), np.array([b]))
+                # a, b = env.random_action()
+                # s, _, _ = env.step(np.array([a]), np.array([b]))
+                _, s, _, _ = env.step()
                 local_steps += 1
                 state_record.append(s)
             evaluate_reward = 0
@@ -249,7 +230,9 @@ def fit_nash():
                         state_record[-1].reshape(-1, 4)) / policy_attacker.predict(
                         state_record[-1].reshape(-1, 4)).sum()])[0]
                 ac_v, ac_a = action_vehicle.numpy(), action_attacker.numpy()
-                next_state, reward, done = env.step(ac_v, ac_a)
+                ac_v = ac_v / (sum(ac_v[0]) + 0.000000001)
+                ac_a = ac_a.clip(-1, 1)
+                _, next_state, reward, done = env.step(ac_v, ac_a)
                 real_ac_v = ac_v[0].clip(-1, 1) + 1
                 tra_ac_veh.append(real_ac_v / (sum(real_ac_v) + 0.0000001))
                 tra_ac_att.append(ac_a[0])
@@ -274,42 +257,43 @@ def fit_nash():
             # writer.add_scalar('reward/test', episode_reward, i_episode)
     env.close()
     df = pd.DataFrame()
+    df['Reward'] = pd.Series(rewards)
     df['Eva'] = pd.Series(eva_reward)
     df['Tra'] = pd.Series(ave_reward)
     df2 = pd.DataFrame()
     df2['Weight'] = pd.Series(tra_ac_veh)
     df2['Attack'] = pd.Series(tra_ac_att)
-    df.to_csv('./Result/reward_result_30.csv', index=None)
-    df2.to_csv('./Result/action_result_30.csv', index=None)
+    df.to_csv('./Result/reward_result_0607_max_attack.csv', index=None)
+    df2.to_csv('./Result/action_result_0607_max_attack.csv', index=None)
     # np.savetxt('./Result/eva_result.csv', eva_reward, delimiter=',')
     # np.savetxt('./Result/ave_result.csv', ave_reward, delimiter=',')
 
-    f = plt.figure()
-    plt.plot(rewards[5:], label='Eva_reward')
-    plt.show()
-    AC_veh = np.array(tra_ac_veh)
-    AC_att = np.array(tra_ac_att)
+    # f = plt.figure()
+    # plt.plot(rewards[5:], label='Eva_reward')
+    # plt.show()
+    # AC_veh = np.array(tra_ac_veh)
+    # AC_att = np.array(tra_ac_att)
     # print(AC_veh.shape)
     # print(AC_veh)
-    plt.plot(AC_veh[:, 0], label='Bacon1', alpha=0.2)
-    plt.plot(AC_veh[:, 1], label='Bacon2', alpha=0.2)
-    plt.plot(AC_veh[:, 2], label='Bacon3', alpha=0.2)
-    plt.plot(AC_veh[:, 3], label='Bacon4', alpha=0.2)
-    # plt.plot(ave_reward, label='Tra_ave_reward')
-    plt.legend()
-    plt.savefig('./Result/Veh_result_30.png', ppi=300)
-    plt.show()
+    # plt.plot(AC_veh[:, 0], label='Bacon1', alpha=0.2)
+    # plt.plot(AC_veh[:, 1], label='Bacon2', alpha=0.2)
+    # plt.plot(AC_veh[:, 2], label='Bacon3', alpha=0.2)
+    # plt.plot(AC_veh[:, 3], label='Bacon4', alpha=0.2)
+    # # plt.plot(ave_reward, label='Tra_ave_reward')
+    # plt.legend()
+    # plt.savefig('./Result/Veh_result_30.png', ppi=300)
+    # plt.show()
     # print(AC_veh.shape)
     # print(AC_veh)
-    plt.plot(AC_att[:, 0], label='Attack1', alpha=0.2)
-    plt.plot(AC_att[:, 1], label='Attack2', alpha=0.2)
-    plt.plot(AC_att[:, 2], label='Attack3', alpha=0.2)
-    plt.plot(AC_att[:, 3], label='Attack4', alpha=0.2)
-    # plt.plot(ave_reward, label='Tra_ave_reward')
-    # plt.title('')
-    plt.legend()
-    plt.savefig('./Result/Att_result_30.png', ppi=300)
-    plt.show()
+    # plt.plot(AC_att[:, 0], label='Attack1', alpha=0.2)
+    # plt.plot(AC_att[:, 1], label='Attack2', alpha=0.2)
+    # plt.plot(AC_att[:, 2], label='Attack3', alpha=0.2)
+    # plt.plot(AC_att[:, 3], label='Attack4', alpha=0.2)
+    # # plt.plot(ave_reward, label='Tra_ave_reward')
+    # # plt.title('')
+    # plt.legend()
+    # plt.savefig('./Result/Att_result_0602.png', ppi=300)
+    # plt.show()
 
 
 if __name__ == '__main__':
