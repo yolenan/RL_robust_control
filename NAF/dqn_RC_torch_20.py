@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 import torch
-from NAF.naf import NAF
+from naf import NAF
 # from tensorboardX import SummaryWriter
-from NAF.replay_memory import ReplayMemory, Transition
+from replay_memory import ReplayMemory, Transition
 import numpy as np
 import random
-from NAF.DnsCarFollowENV2 import VehicleFollowingENV
+from DnsCarFollowENV2 import VehicleFollowingENV
 from ounoise import OUNoise
-from NAF.Supervised_Learning import create_SL_model
+from Supervised_Learning import create_SL_model
 from param_noise import AdaptiveParamNoiseSpec, ddpg_distance_metric
 import argparse
 import os
@@ -40,7 +40,7 @@ parser.add_argument('--batch_size', type=int, default=128, metavar='N',
                     help='batch size (default: 128)')
 parser.add_argument('--num_steps', type=int, default=100000, metavar='N',
                     help='max episode length (default: 1000)')
-parser.add_argument('--num_episodes', type=int, default=1000, metavar='N',
+parser.add_argument('--num_episodes', type=int, default=5000, metavar='N',
                     help='number of episodes (default: 1000)')
 parser.add_argument('--hidden_size', type=int, default=128, metavar='N',
                     help='number of episodes (default: 128)')
@@ -112,7 +112,6 @@ def fit_nash():
             d, s, _, done = env.step()
             if done:
                 s = np.array([env.reset()])
-            local_steps += 1
             state_record.append(s)
         if args.ou_noise:
             ounoise_vehicle.scale = (args.noise_scale - args.final_noise_scale) * max(0, args.exploration_end -
@@ -135,7 +134,9 @@ def fit_nash():
                 action_attacker = torch.Tensor(
                     [policy_attacker.predict(state_record[-1].reshape(-1, 4))])[0]
             ac_v, ac_a = action_vehicle.numpy(), action_attacker.numpy()
-            ac_v = ac_v / (sum(ac_v[0]) + 0.000000001)
+            ac_v = ac_v / (sum(ac_v[0]) + 0.000000001)  # 4个权重和为1
+            ac_a = ac_a / (sum(abs(ac_a[0])) + 0.000000001)  # 4个攻击绝对值和为1
+            ac_a = np.array([[-0.25, 0, -0.75, 0]])
             _, next_state, reward, done = env.step(ac_v, ac_a)
             # print(ac_a, _)
             # print(done)
@@ -157,7 +158,7 @@ def fit_nash():
             memory_attacker.push(prev_state, action_attacker, mask, next_state, reward_attacker)
             if done:
                 rewards.append(episode_reward)
-                if i_episode % 100:
+                if i_episode % 10 == 0:
                     print('Episode {} ends, local_steps {}. total_steps {}, instant ave-reward is {:.4f}'.format(
                         i_episode, local_steps, total_numsteps, episode_reward))
                 break
@@ -206,6 +207,7 @@ def fit_nash():
         if i_episode % 10 == 0 and i_episode > 0:
             state = env.reset()
             state_record = [np.array([state])]
+            eva_steps = 0
             while len(state_record) < 20:
                 # a, b = env.random_action()
                 # s, _, _ = env.step(np.array([a]), np.array([b]))
@@ -224,20 +226,19 @@ def fit_nash():
                                                                    param_noise_attacker)[:, -1, :]
                 else:
                     action_vehicle = torch.Tensor([policy_vehicle.predict(
-                        state_record[-1].reshape(-1, 4)) / policy_vehicle.predict(
-                        state_record[-1].reshape(-1, 4)).sum()])[0]
+                        state_record[-1].reshape(-1, 4))])[0]
                     action_attacker = torch.Tensor([policy_attacker.predict(
-                        state_record[-1].reshape(-1, 4)) / policy_attacker.predict(
-                        state_record[-1].reshape(-1, 4)).sum()])[0]
+                        state_record[-1].reshape(-1, 4))])[0]
                 ac_v, ac_a = action_vehicle.numpy(), action_attacker.numpy()
                 ac_v = ac_v / (sum(ac_v[0]) + 0.000000001)
-                ac_a = ac_a.clip(-1, 1)
+                ac_a = ac_a / (sum(abs(ac_a[0])) + 0.000000001)
+                ac_a = np.array([[-0.25, 0, -0.75, 0]])
                 _, next_state, reward, done = env.step(ac_v, ac_a)
-                real_ac_v = ac_v[0].clip(-1, 1) + 1
-                tra_ac_veh.append(real_ac_v / (sum(real_ac_v) + 0.0000001))
+                tra_ac_veh.append(ac_v[0])
                 tra_ac_att.append(ac_a[0])
                 state_record.append(next_state)
                 total_numsteps += 1
+                eva_steps += 1
                 local_steps += 1
                 # print('eva_reward', reward)
                 evaluate_reward += reward
@@ -245,11 +246,13 @@ def fit_nash():
                 state = next_state[0]
                 if done:
                     average_reward = np.mean(rewards[-10:])
-                    print("{} % Episode finished, total numsteps: {}, eva-reward: {}, average reward: {}".format(
-                        i_episode / args.num_episodes * 100,
-                        total_numsteps,
-                        evaluate_reward,
-                        average_reward))
+                    print(
+                        "{} % Episode finished, total numsteps: {}, eva-steps:{}, eva-reward: {}, average reward: {}".format(
+                            i_episode / args.num_episodes * 100,
+                            total_numsteps,
+                            eva_steps,
+                            evaluate_reward,
+                            average_reward))
                     eva_reward.append(evaluate_reward)
                     ave_reward.append(average_reward)
                     # print(ac_v[0])
@@ -263,8 +266,8 @@ def fit_nash():
     df2 = pd.DataFrame()
     df2['Weight'] = pd.Series(tra_ac_veh)
     df2['Attack'] = pd.Series(tra_ac_att)
-    df.to_csv('./Result/reward_result_0607_max_attack.csv', index=None)
-    df2.to_csv('./Result/action_result_0607_max_attack.csv', index=None)
+    df.to_csv('./Result/reward_result_0607_max_attack_5000.csv', index=None)
+    df2.to_csv('./Result/action_result_0607_max_attack_5000.csv', index=None)
     # np.savetxt('./Result/eva_result.csv', eva_reward, delimiter=',')
     # np.savetxt('./Result/ave_result.csv', ave_reward, delimiter=',')
 
