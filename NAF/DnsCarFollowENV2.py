@@ -55,7 +55,7 @@ class VehicleFollowingENV(object):
         self.RC = 0
         self.reward_mode = 3  #
         self.defend_mode = 2  # 0为无防御 1为最佳防御，其他为策略防御
-        self.attack_mode = 2  # 0为攻击1个信标，1为攻击2个信标，2为攻击4个信标，3为全部最大攻击
+        self.attack_mode = 1  # 0为攻击1个信标，1为攻击2个信标，2为攻击4个信标，3为全部最大攻击
         self.acc_update_mode = 0  # 0为仅根据前后车速度差更新加速度，1为考虑前后车距离
 
     def reset(self):
@@ -159,7 +159,7 @@ class VehicleFollowingENV(object):
         self.v_head = self.v_head + self.a_head * self.sample_interval
         self.v = self.v + self.action_car * self.sample_interval
         # 返回结果
-        if abs(self.d - self.d0) > UPPER_BOUND or self.step_number > 100000000:
+        if abs(self.d - self.d0) > UPPER_BOUND or self.step_number > 2000:
             is_done = True
         else:
             is_done = False

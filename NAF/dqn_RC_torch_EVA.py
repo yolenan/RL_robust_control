@@ -222,19 +222,21 @@ def fit_nash():
             evaluate_reward = 0
             while True:
                 # la = np.random.randint(0, len(state_record) - 20, 1)[0]
+                attack = np.random.randn(4) * ATTACKER_LIMIT
+                ac_a = np.array([attack])
                 if random.random() < ETA:
                     action_vehicle = agent_vehicle.select_action(torch.Tensor(state_record[-65:]),
                                                                  ounoise_vehicle,
                                                                  param_noise_vehicle)[:, -1, :]
-                    action_attacker = agent_attacker.select_action(torch.Tensor(state_record[-65:]),
-                                                                   ounoise_attacker,
-                                                                   param_noise_attacker)[:, -1, :]
+                    # action_attacker = agent_attacker.select_action(torch.Tensor(state_record[-65:]),
+                    #                                                ounoise_attacker,
+                    #                                                param_noise_attacker)[:, -1, :]
                 else:
                     action_vehicle = torch.Tensor([policy_vehicle.predict(
                         state_record[-1].reshape(-1, 4))])[0]
-                    action_attacker = torch.Tensor([policy_attacker.predict(
-                        state_record[-1].reshape(-1, 4))])[0]
-                ac_v, ac_a = action_vehicle.numpy(), action_attacker.numpy()
+                    # action_attacker = torch.Tensor([policy_attacker.predict(
+                    #     state_record[-1].reshape(-1, 4))])[0]
+                ac_v = action_vehicle.numpy()
                 ac_v = ac_v / (sum(ac_v[0]) + 0.000000001)
                 if sum(abs(ac_a[0])) > 1:
                     ac_a = ac_a / (sum(abs(ac_a[0])) + 0.000000001)
@@ -274,8 +276,8 @@ def fit_nash():
     df2['Weight'] = pd.Series(tra_ac_veh)
     df2['Attack'] = pd.Series(tra_ac_att)
     df2['Eva_distance'] = pd.Series(eva_distance)
-    df.to_csv('./Result/reward_result_0608_4bacon_RC100_1000.csv', index=None)
-    df2.to_csv('./Result/action_result_0608_4bacon_RC100_1000.csv', index=None)
+    df.to_csv('./Result/reward_result_0608_2bacon_RC0_1000_eva.csv', index=None)
+    df2.to_csv('./Result/action_result_0608_2bacon_RC0_1000_eva.csv', index=None)
     # np.savetxt('./Result/eva_result.csv', eva_reward, delimiter=',')
     # np.savetxt('./Result/ave_result.csv', ave_reward, delimiter=',')
 
