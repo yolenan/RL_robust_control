@@ -5,15 +5,15 @@ plt.style.use('ggplot')
 
 
 def plot_result(mode='result', title='Adversary Learning Result'):
-    df = pd.read_csv('reward_result_0608_4bacon_RC0_1000_eva.csv')
+    df = pd.read_csv('reward_result_0608_4bacon_RC50_10000_eva.csv')
     # df = pd.read_csv('reward_result_0608_4bacon_5000.csv')
     # df2 = pd.read_csv('reward_result_0608_4bacon_RC50_1000.csv')
     # df3 = pd.read_csv('reward_result_0608_4bacon_RC100_1000.csv')
     if mode == 'result':
-        plt.plot(df['Reward'][1:], label='Train')
+        plt.plot(df[df['Reward'] < 400]['Reward'][1:], label='Train')
     elif mode == 'evaluate':
-        plt.plot(df['Eva'], label='2bacon-Evaluate-RC0')
-        plt.plot(df['Tra'], label='2bacon-Train-RC0')
+        plt.plot(df['Eva'], label='4bacon-Evaluate-RC0')
+        # plt.plot(df['Tra'], label='4bacon-Train-RC0')
         # plt.plot(df2['Eva'], label='4bacon-Evaluate-RC50')
         # plt.plot(df2['Tra'], label='4bacon-Train-RC50')
         # plt.plot(df3['Eva'], label='4bacon-Evaluate-RC100')
@@ -40,6 +40,6 @@ def plot_action(mode='veh'):
     plt.show()
 
 
-# plot_result(mode='evaluate')
-plot_result()
+plot_result(mode='evaluate')
+# plot_result()
 # plot_action()

@@ -53,7 +53,7 @@ class VehicleFollowingENV(object):
         self.observation_space = observation_space
         self.vehicle_action_space = vehicle_action_space
         self.attacker_action_space = vehicle_action_space
-        self.RC = 100
+        self.RC = 15
         self.reward_mode = 3  #
         self.defend_mode = 2  # 0为无防御 1为最佳防御，其他为策略防御
         self.attack_mode = 2  # 0为攻击1个信标，1为攻击2个信标，2为攻击4个信标，3为全部最大攻击

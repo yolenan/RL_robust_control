@@ -221,12 +221,12 @@ def fit_nash():
             evaluate_reward = 0
             while True:
                 # la = np.random.randint(0, len(state_record) - 20, 1)[0]
-                # attack = np.random.randn(4) * ATTACKER_LIMIT
-                a0 = np.random.uniform(-0.25, 0)
-                a1 = 0
-                a2 = np.random.uniform(-0.75, -0.5)
-                a3 = 0
-                attack = np.array([a0, a1, a2, a3])
+                attack = np.random.randn(4) * ATTACKER_LIMIT
+                # a0 = np.random.uniform(-0.25, 0)
+                # a1 = 0
+                # a2 = np.random.uniform(-0.75, -0.5)
+                # a3 = 0
+                # attack = np.array([a0, a1, a2, a3])
                 if sum(abs(attack)) > 1:
                     attack = attack / sum(abs(attack))
                 ac_a = np.array([attack])
