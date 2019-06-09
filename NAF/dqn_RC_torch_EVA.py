@@ -40,7 +40,7 @@ parser.add_argument('--batch_size', type=int, default=128, metavar='N',
                     help='batch size (default: 128)')
 parser.add_argument('--num_steps', type=int, default=100000, metavar='N',
                     help='max episode length (default: 1000)')
-parser.add_argument('--num_episodes', type=int, default=1000, metavar='N',
+parser.add_argument('--num_episodes', type=int, default=10000, metavar='N',
                     help='number of episodes (default: 1000)')
 parser.add_argument('--hidden_size', type=int, default=128, metavar='N',
                     help='number of episodes (default: 128)')
@@ -59,7 +59,8 @@ The Nash Eq* Factor RC is        {}
 The defend mode is               {}
 The attack mode is               {}
 The reward mode is               {}
-""".format(env.v_head, env.d0, env.RC, env.defend_mode, env.attack_mode, env.reward_mode))
+The total episode is             {}
+""".format(env.v_head, env.d0, env.RC, env.defend_mode, env.attack_mode, env.reward_mode, args.num_episodes))
 # writer = SummaryWriter()
 
 
@@ -110,8 +111,6 @@ def fit_nash():
         # state_record = [np.array([state])]
         state_record = [np.array([state])]
         while len(state_record) < 65:
-            a, b = env.random_action()
-            # s, _, _ = env.step(np.array([a]), np.array([b]))
             d, s, _, done = env.step()
             if done:
                 s = np.array([env.reset()])
@@ -222,7 +221,14 @@ def fit_nash():
             evaluate_reward = 0
             while True:
                 # la = np.random.randint(0, len(state_record) - 20, 1)[0]
-                attack = np.random.randn(4) * ATTACKER_LIMIT
+                # attack = np.random.randn(4) * ATTACKER_LIMIT
+                a0 = np.random.uniform(-0.25, 0)
+                a1 = 0
+                a2 = np.random.uniform(-0.75, -0.5)
+                a3 = 0
+                attack = np.array([a0, a1, a2, a3])
+                if sum(abs(attack)) > 1:
+                    attack = attack / sum(abs(attack))
                 ac_a = np.array([attack])
                 if random.random() < ETA:
                     action_vehicle = agent_vehicle.select_action(torch.Tensor(state_record[-65:]),
@@ -276,8 +282,10 @@ def fit_nash():
     df2['Weight'] = pd.Series(tra_ac_veh)
     df2['Attack'] = pd.Series(tra_ac_att)
     df2['Eva_distance'] = pd.Series(eva_distance)
-    df.to_csv('./Result/reward_result_0608_2bacon_RC0_1000_eva.csv', index=None)
-    df2.to_csv('./Result/action_result_0608_2bacon_RC0_1000_eva.csv', index=None)
+    df.to_csv('./Result/reward_result_0608_4bacon_RC' + str(env.RC) + '_' + str(args.num_episodes) + '_eva.csv',
+              index=None)
+    df2.to_csv('./Result/action_result_0608_4bacon_RC' + str(env.RC) + '_' + str(args.num_episodes) + '_eva.csv',
+               index=None)
     # np.savetxt('./Result/eva_result.csv', eva_reward, delimiter=',')
     # np.savetxt('./Result/ave_result.csv', ave_reward, delimiter=',')
 

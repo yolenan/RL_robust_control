@@ -5,7 +5,7 @@ plt.style.use('ggplot')
 
 
 def plot_result(mode='result', title='Adversary Learning Result'):
-    df = pd.read_csv('reward_result_0608_2bacon_RC0_1000.csv')
+    df = pd.read_csv('reward_result_0608_4bacon_RC0_1000_eva.csv')
     # df = pd.read_csv('reward_result_0608_4bacon_5000.csv')
     # df2 = pd.read_csv('reward_result_0608_4bacon_RC50_1000.csv')
     # df3 = pd.read_csv('reward_result_0608_4bacon_RC100_1000.csv')
@@ -40,6 +40,6 @@ def plot_action(mode='veh'):
     plt.show()
 
 
-plot_result(mode='evaluate')
-# plot_result()
+# plot_result(mode='evaluate')
+plot_result()
 # plot_action()

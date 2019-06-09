@@ -2,6 +2,7 @@ import numpy as np
 from math import *
 from scipy.optimize import minimize
 
+np.random.seed(1234)
 SAMPLE_INTERVAL = 1
 SPEED_LIMIT = 20
 ACC_MODE = 0
@@ -52,10 +53,10 @@ class VehicleFollowingENV(object):
         self.observation_space = observation_space
         self.vehicle_action_space = vehicle_action_space
         self.attacker_action_space = vehicle_action_space
-        self.RC = 0
+        self.RC = 100
         self.reward_mode = 3  #
         self.defend_mode = 2  # 0为无防御 1为最佳防御，其他为策略防御
-        self.attack_mode = 1  # 0为攻击1个信标，1为攻击2个信标，2为攻击4个信标，3为全部最大攻击
+        self.attack_mode = 2  # 0为攻击1个信标，1为攻击2个信标，2为攻击4个信标，3为全部最大攻击
         self.acc_update_mode = 0  # 0为仅根据前后车速度差更新加速度，1为考虑前后车距离
 
     def reset(self):
@@ -198,7 +199,18 @@ class VehicleFollowingENV(object):
     def random_action(self):
         weight = np.random.random(4)
         weight = weight / weight.sum()
-        attack = np.random.randn(4) * ATTACKER_LIMIT
+        # attack = np.random.random(4)
+        a0 = np.random.uniform(-0.25, 0)
+        a1 = 0
+        a3 = 0
+        # a1 = np.random.uniform(-0.5, -0.25)
+        a2 = np.random.uniform(-0.75, -0.5)
+        # a3 = np.random.uniform(-1, -0.75)
+        # attack = np.random.randn(4) * ATTACKER_LIMIT
+        attack = np.array([a0, a1, a2, a3])
+        if sum(abs(attack)) > 1:
+            attack = attack / sum(abs(attack))
+        # print(attack)
         return np.array([weight]), np.array([attack])
 
     def close(self):
@@ -226,7 +238,7 @@ if __name__ == '__main__':
             v_observe = env.reset()
             done = False
             print('Episode reward {}'.format(sum(rewards)))
-            rewards = []
+            # rewards = []
             done_count += 1
             break
         # print(next_state)
@@ -239,9 +251,9 @@ if __name__ == '__main__':
     plt.legend()
     plt.show()
     # plt.figure()
-    plt.plot(distance, label='Distance')
-    plt.xlabel('Step')
-    plt.ylabel('Distance/m')
-    plt.legend()
-    plt.show()
-    print('Done num', done_count)
+    # plt.plot(distance, label='Distance')
+    # plt.xlabel('Step')
+    # plt.ylabel('Distance/m')
+    # plt.legend()
+    # plt.show()
+    # print('Done num', done_count)
