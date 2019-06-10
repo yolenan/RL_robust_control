@@ -105,7 +105,7 @@ def plotDistance(filename, k):
             if len(res) == 0:
                 i += 1
                 dis.append([])
-                legends.append('episode' + str(i * 10))
+                legends.append('episode' + str(i))
             else:
                 dis[-1].append(float(res[0]))
 
@@ -124,7 +124,10 @@ def parseActionCSV(filename, action, k):
     if name != 'Eva_distance':
         data['w1'] = data[action].apply(lambda x: float(x.replace('[', '').replace(']', '').split()[0]))
         data['w2'] = data[action].apply(lambda x: float(x.replace('[', '').replace(']', '').split()[1]))
-        data['w3'] = data[action].apply(lambda x: float(x.replace('[', '').replace(']', '').split()[2]))
+        try:
+            data['w3'] = data[action].apply(lambda x: float(x.replace('[', '').replace(']', '').split()[2]))
+        except:
+            print(data[action].apply(lambda x: x.replace('[', '').replace(']', '').split()))
         data['w4'] = data[action].apply(lambda x: float(x.replace('[', '').replace(']', '').split()[3]))
         w1 = data.w1.values
         w2 = data.w2.values
@@ -163,15 +166,19 @@ def parseActionCSV(filename, action, k):
         w = [[]]
         legends = []
         i = 0
+        count = 0
         for distance in data[action].values:
-            if distance < 20 or distance > 30:
+            count += 1
+            if distance < 20 or distance > 30 or count > 2000:
                 w[-1].append(distance)
                 w.append([])
-                legends.append('episode' + str(i * 100))
+                legends.append('episode' + str(i))
+                count = 0
                 i += 1
             else:
                 w[-1].append(distance)
         print(i)
+        print(legends[0::len(legends) // 10])
         for dis_data in w[0::len(w) // 10]:
             plt.step(range(len(dis_data)), dis_data)
         plt.legend(legends[0::len(legends) // 10], fontsize=8)
@@ -200,17 +207,21 @@ def ResolveDistance(filename, k):
     distances = [[]]
     distance_data = []
     legends = []
+    done_count = 0
     while i < data['Weight_array'].shape[0]:
-        state, _, is_done = env.step(weights[i], attacks[i])
-        distance_data.append(env.d)
+        ac_v = np.array([weights[i]])
+        ac_a = np.array([attacks[i]])
+        d, state, _, is_done = env.step(ac_v, ac_a)
+        distance_data.append(d)
         if is_done:
-            distances[-1].append(env.d)
+            distances[-1].append(d)
             distances.append([])
-            print(len(distances) - 1)
-            legends.append('episode' + str(len(distances) - 1))
+            done_count += 1
+            print(done_count)
+            legends.append('episode' + str(done_count))
             env.reset()
         else:
-            distances[-1].append(env.d)
+            distances[-1].append(d)
         i += 1
     data['Eva_distance'] = pd.Series(distance_data)
     data[['Weight', 'Attack', 'Eva_distance']].to_csv(filename, index=False)
@@ -222,7 +233,7 @@ def ResolveDistance(filename, k):
     plt.title('Distance changes within one episode', fontsize=12)
 
 
-actionfile = './Result/' + 'action_result_0608_4bacon_RC1_10000_eva.csv'
+actionfile = './Result/' + 'action_result_0608_4bacon_RC100_10000_eva.csv'
 rewardfile = './Result/' + ''
 
 k = int(re.findall('_(\d*000)[_\.]', actionfile)[0])
@@ -248,10 +259,10 @@ def main():
         parseActionCSV(actionfile, 'Eva_distance', k)
     except:
         ResolveDistance(actionfile, k)
-    plt.subplot(1, 3, 1)
-    parseActionCSV(actionfile, 'Weight', k // 1)
     plt.subplot(1, 3, 2)
-    parseActionCSV(actionfile, 'Attack', k // 1)
+    parseActionCSV(actionfile, 'Weight', k // 10)
+    plt.subplot(1, 3, 3)
+    parseActionCSV(actionfile, 'Attack', k // 10)
 
 
 if __name__ == '__main__':
