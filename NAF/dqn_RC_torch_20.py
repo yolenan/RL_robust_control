@@ -6,13 +6,14 @@ from replay_memory import ReplayMemory, Transition
 import numpy as np
 import random
 from DnsCarFollowENV2 import VehicleFollowingENV
-from ounoise import OUNoise
+from ounoise import OUNoise, GaussNoise
 from Supervised_Learning import create_SL_model
 from param_noise import AdaptiveParamNoiseSpec, ddpg_distance_metric
 import argparse
 import os
 import matplotlib.pyplot as plt
 import pandas as pd
+import time
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
@@ -30,21 +31,21 @@ parser.add_argument('--ou_noise', type=bool, default=True)
 parser.add_argument('--param_noise', type=bool, default=True)
 parser.add_argument('--noise_scale', type=float, default=0.3, metavar='G',
                     help='initial noise scale (default: 0.3)')
-parser.add_argument('--final_noise_scale', type=float, default=0.3, metavar='G',
+parser.add_argument('--final_noise_scale', type=float, default=0, metavar='G',
                     help='final noise scale (default: 0.3)')
 parser.add_argument('--exploration_end', type=int, default=100, metavar='N',
                     help='number of episodes with noise (default: 100)')
 parser.add_argument('--seed', type=int, default=4, metavar='N',
                     help='random seed (default: 4)')
-parser.add_argument('--batch_size', type=int, default=128, metavar='N',
+parser.add_argument('--batch_size', type=int, default=1024, metavar='N',
                     help='batch size (default: 128)')
 parser.add_argument('--num_steps', type=int, default=100000, metavar='N',
                     help='max episode length (default: 1000)')
-parser.add_argument('--num_episodes', type=int, default=1000, metavar='N',
+parser.add_argument('--num_episodes', type=int, default=10000, metavar='N',
                     help='number of episodes (default: 1000)')
 parser.add_argument('--hidden_size', type=int, default=128, metavar='N',
                     help='number of episodes (default: 128)')
-parser.add_argument('--updates_per_step', type=int, default=5, metavar='N',
+parser.add_argument('--updates_per_step', type=int, default=3, metavar='N',
                     help='model updates per simulator step (default: 5)')
 parser.add_argument('--replay_size', type=int, default=1000000, metavar='N',
                     help='size of replay buffer (default: 1000000)')
@@ -81,8 +82,8 @@ def fit_nash():
     memory_SL_vehicle = ReplayMemory(100000)
     memory_SL_attacker = ReplayMemory(100000)
 
-    ounoise_vehicle = OUNoise(env.vehicle_action_space) if args.ou_noise else None
-    ounoise_attacker = OUNoise(env.attacker_action_space) if args.ou_noise else None
+    ounoise_vehicle = GaussNoise(env.vehicle_action_space) if args.ou_noise else None
+    ounoise_attacker = GaussNoise(env.attacker_action_space) if args.ou_noise else None
 
     param_noise_vehicle = AdaptiveParamNoiseSpec(initial_stddev=0.05,
                                                  desired_action_stddev=args.noise_scale,
@@ -223,12 +224,8 @@ def fit_nash():
             while True:
                 # la = np.random.randint(0, len(state_record) - 20, 1)[0]
                 if random.random() < ETA:
-                    action_vehicle = agent_vehicle.select_action(torch.Tensor(state_record[-65:]),
-                                                                 ounoise_vehicle,
-                                                                 param_noise_vehicle)[:, -1, :]
-                    action_attacker = agent_attacker.select_action(torch.Tensor(state_record[-65:]),
-                                                                   ounoise_attacker,
-                                                                   param_noise_attacker)[:, -1, :]
+                    action_vehicle = agent_vehicle.select_action(torch.Tensor(state_record[-65:]))[:, -1, :]
+                    action_attacker = agent_attacker.select_action(torch.Tensor(state_record[-65:]))[:, -1, :]
                 else:
                     action_vehicle = torch.Tensor([policy_vehicle.predict(
                         state_record[-1].reshape(-1, 4))])[0]
@@ -274,8 +271,13 @@ def fit_nash():
     df2['Weight'] = pd.Series(tra_ac_veh)
     df2['Attack'] = pd.Series(tra_ac_att)
     df2['Eva_distance'] = pd.Series(eva_distance)
-    df.to_csv('./Result/reward_result_0608_4bacon_RC100_1000.csv', index=None)
-    df2.to_csv('./Result/action_result_0608_4bacon_RC100_1000.csv', index=None)
+    dtime = time.strftime('%m%d', time.localtime(time.time()))
+    df.to_csv(
+        './Result/reward_result_' + dtime + '_4beacon_RC' + str(env.RC) + '_' + str(args.num_episodes) + '1024_4.csv',
+        index=None)
+    df2.to_csv(
+        './Result/action_result_' + dtime + '_4beacon_RC' + str(env.RC) + '_' + str(args.num_episodes) + '1024_4.csv',
+        index=None)
     # np.savetxt('./Result/eva_result.csv', eva_reward, delimiter=',')
     # np.savetxt('./Result/ave_result.csv', ave_reward, delimiter=',')
 

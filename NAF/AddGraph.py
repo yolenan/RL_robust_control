@@ -233,9 +233,9 @@ def ResolveDistance(filename, k):
     plt.title('Distance changes within one episode', fontsize=12)
 
 
-actionfile = './Result/' + 'action_result_0608_4bacon_RC100_10000_eva.csv'
+filename = 'action_result_0610_4beacon_RC0_10000512'
+actionfile = './Result/' + filename + '.csv'
 rewardfile = './Result/' + ''
-
 k = int(re.findall('_(\d*000)[_\.]', actionfile)[0])
 print(k)
 
@@ -273,4 +273,5 @@ if __name__ == '__main__':
     # plotAction('attacker_actionNash_True_RC_0_AttackMode_1_RewardMode_3.txt', 20000)
     # plotAction('vehicle_weightNash_True_RC_0_AttackMode_1_RewardMode_3.txt', 20000)
     # plotDistance('DistanceNash_True_RC_0_AttackMode_1_RewardMode_3.txt', 0)
+    plt.savefig('./Result/figure_plot/'+filename + '.png', dpi=300)
     plt.show()

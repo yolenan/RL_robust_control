@@ -134,10 +134,12 @@ class NAF:
         # print(Variable(state))
         if is_cuda:
             V_s = Variable(state).cuda()
-            ac_noise = torch.Tensor(action_noise.noise()).cuda()
+            if action_noise is not None:
+                ac_noise = torch.Tensor(action_noise.noise()).cuda()
         else:
             V_s = Variable(state)
-            ac_noise = torch.Tensor(action_noise.noise())
+            if action_noise is not None:
+                ac_noise = torch.Tensor(action_noise.noise())
         mu, _, _ = self.model((V_s, None))
         self.model.train()
         mu = mu.data

@@ -53,8 +53,8 @@ class VehicleFollowingENV(object):
         self.observation_space = observation_space
         self.vehicle_action_space = vehicle_action_space
         self.attacker_action_space = vehicle_action_space
-        self.RC = 15
-        self.reward_mode = 3  #
+        self.RC = 0
+        self.reward_mode = 4  #
         self.defend_mode = 2  # 0为无防御 1为最佳防御，其他为策略防御
         self.attack_mode = 2  # 0为攻击1个信标，1为攻击2个信标，2为攻击4个信标，3为全部最大攻击
         self.acc_update_mode = 0  # 0为仅根据前后车速度差更新加速度，1为考虑前后车距离
@@ -130,10 +130,14 @@ class VehicleFollowingENV(object):
         # print(action_attacker)
 
         [a0, a1, a2, a3] = action_attacker[0]
-        a0 = a0 if abs(a0) <= 0.25 else 0
-        a1 = a1 if 0.25 < abs(a1) <= 0.5 else 0
-        a2 = a2 if 0.5 < abs(a2) <= 0.75 else 0
-        a3 = a3 if 0.75 < abs(a3) <= 1 else 0
+        # a0 = a0 if abs(a0) <= 0.25 else 0
+        # a1 = a1 if 0.25 < abs(a1) <= 0.5 else 0
+        # a2 = a2 if 0.5 < abs(a2) <= 0.75 else 0
+        # a3 = a3 if 0.75 < abs(a3) <= 1 else 0
+        a0 = np.clip(a0, -0.25, 0.25)
+        a1 = np.clip(a1, -0.5, 0.5)
+        a2 = np.clip(a2, -0.75, 0.75)
+        a3 = np.clip(a3, -1, 1)
         if self.attack_mode == 3:
             a0 = -0.25
             a1 = 0
@@ -167,7 +171,7 @@ class VehicleFollowingENV(object):
         # reward 用
         if self.reward_mode == 0:
             if (is_done):
-                reward = -10
+                reward = -1000
             else:
                 reward = -(self.d - self.d0) ** 2 / 100 ** 2
         elif self.reward_mode == 1:
@@ -191,6 +195,13 @@ class VehicleFollowingENV(object):
         elif self.reward_mode == 3:
             delta_d = abs(self.d - self.d0)
             reward = (delta_d - UPPER_BOUND) ** 2 / (UPPER_BOUND ** 2)
+        elif self.reward_mode == 4:
+            delta_v = abs(self.v_cal - self.v_head)
+            # print(self.v_cal, self.v_head)
+            if is_done:
+                reward = -1
+            else:
+                reward = np.clip(1 / (delta_v * 10 + 0.000001), 0, 1)
 
         next_state = self.v_cal_raw
         # print(action_weight, action_attacker)
@@ -231,6 +242,7 @@ if __name__ == '__main__':
         i = i + 1
         d, next_state, reward, done = env.step(*env.random_action())
         print(d)
+        print(next_state)
         # d, next_state, reward, done = env.step()
         rewards.append(round(reward, 3))
         distance.append(round(d, 3))

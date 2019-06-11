@@ -1,5 +1,7 @@
 import numpy as np
 
+np.random.seed(1234)
+
 
 # from https://github.com/songrotek/DDPG/blob/master/ou_noise.py
 class OUNoise:
@@ -19,5 +21,23 @@ class OUNoise:
     def noise(self):
         x = self.state
         dx = self.theta * (self.mu - x) + self.sigma * np.random.randn(len(x))
+        self.state = x + dx
+        return self.state * self.scale
+
+
+class GaussNoise:
+
+    def __init__(self, action_dimension, scale=0.1):
+        self.action_dimension = action_dimension
+        self.scale = scale
+        self.state = np.zeros(self.action_dimension)
+        self.reset()
+
+    def reset(self):
+        self.state = np.zeros(self.action_dimension)
+
+    def noise(self):
+        x = self.state
+        dx = np.random.randn(len(x))
         self.state = x + dx
         return self.state * self.scale
