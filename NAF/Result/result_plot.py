@@ -8,7 +8,7 @@ def plot_result(mode='result', title='Adversary Learning Result'):
     # df1 = pd.read_csv('reward_result_0608_4bacon_RC0_10000_eva.csv')
     # df2= pd.read_csv('reward_result_0608_4bacon_RC1_10000_eva.csv')
     # df3 = pd.read_csv('reward_result_0608_4bacon_RC5_10000_eva.csv')
-    filename = 'reward_result_0610_4beacon_RC0_5000'
+    filename = 'reward_result_0612_4beacon_RC0_20000_eva'
     df4 = pd.read_csv(filename + '.csv')
     title = filename
     # df5 = pd.read_csv('reward_result_0608_4bacon_RC50_10000_eva.csv')
@@ -23,7 +23,7 @@ def plot_result(mode='result', title='Adversary Learning Result'):
         # plt.plot(df1['Tra'], label='4beacon-Train-RC0')
         # plt.plot(df2['Tra'], label='4beacon-Train-RC1')
         # plt.plot(df3['Tra'], label='4beacon-Train-RC5')
-        plt.plot(df4['Tra'], label='Train')
+        # plt.plot(df4['Tra'], label='Train')
         # plt.plot(df5['Tra'], label='4beacon-Train-RC50')
         # plt.plot(df6['Tra'], label='4beacon-Train-RC100')
         plt.plot(df4['Eva'], label='Evaluate')
@@ -53,6 +53,6 @@ def plot_action(mode='veh'):
     plt.show()
 
 
-plot_result(mode='evaluate')
-# plot_result()
+# plot_result(mode='evaluate')
+plot_result()
 # plot_action()

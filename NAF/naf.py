@@ -89,7 +89,8 @@ class Policy(nn.Module):
         # x = F.tanh(self.linear2(x))
         V = self.V(x)
         if self.mode == 'att':
-            mu = torch.tanh(self.mu(x))
+            # mu = torch.tanh(self.mu(x))
+            mu = torch.sigmoid(self.mu(x))
         elif self.mode == 'veh':
             mu = torch.sigmoid(self.mu(x))
 
@@ -119,7 +120,6 @@ class NAF:
         self.model = Policy(hidden_size, num_inputs, action_space, mode)
         self.target_model = Policy(hidden_size, num_inputs, action_space, mode)
         self.optimizer = Adam(self.model.parameters(), lr=1e-3)
-
         self.gamma = gamma
         self.tau = tau
         if is_cuda:
@@ -143,11 +143,14 @@ class NAF:
         mu, _, _ = self.model((V_s, None))
         self.model.train()
         mu = mu.data
+        # print(mu.data, 'mu')
         if action_noise is not None:
+            # print(ac_noise, 'noise')
             mu += ac_noise
         if is_cuda:
             mu = mu.cpu()
-        return mu
+        # print(mu, 'mu_noise')
+        return mu.clamp(0, 1)
         # if self.mode == 'att':
         #     return mu.clamp(-1, 1)
         # elif self.mode == 'veh':

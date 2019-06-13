@@ -37,7 +37,7 @@ class GaussNoise:
         self.state = np.zeros(self.action_dimension)
 
     def noise(self):
-        x = self.state
-        dx = np.random.randn(len(x))
-        self.state = x + dx
+        # x = self.state
+        dx = np.random.randn(self.action_dimension)
+        self.state = dx
         return self.state * self.scale

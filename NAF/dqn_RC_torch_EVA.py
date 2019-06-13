@@ -36,11 +36,11 @@ parser.add_argument('--exploration_end', type=int, default=100, metavar='N',
                     help='number of episodes with noise (default: 100)')
 parser.add_argument('--seed', type=int, default=4, metavar='N',
                     help='random seed (default: 4)')
-parser.add_argument('--batch_size', type=int, default=128, metavar='N',
+parser.add_argument('--batch_size', type=int, default=512, metavar='N',
                     help='batch size (default: 128)')
 parser.add_argument('--num_steps', type=int, default=100000, metavar='N',
                     help='max episode length (default: 1000)')
-parser.add_argument('--num_episodes', type=int, default=10000, metavar='N',
+parser.add_argument('--num_episodes', type=int, default=20000, metavar='N',
                     help='number of episodes (default: 1000)')
 parser.add_argument('--hidden_size', type=int, default=128, metavar='N',
                     help='number of episodes (default: 128)')
@@ -95,18 +95,25 @@ def fit_nash():
     rewards = []
     eva_reward = []
     ave_reward = []
-    eva_distance = []
+    tra_distance = []
     tra_ac_veh = []
     tra_ac_att = []
     All_reward = []
+    eva_distance = []
+    eva_ac_veh = []
+    eva_ac_att = []
+    All_reward = []
     total_numsteps = 0
     updates = 0
-    # while len(state_record) < 20:
-    #     s, _, _ = env.step(*env.random_action())
-    #     state_record.append(s)
-    # print(torch.Tensor([state_record[-20:]]).shape)
+    local_steps = 0
+    max_steps_count = 0
     for i_episode in range(args.num_episodes):
-        local_steps = 0
+        if local_steps > 1900:
+            max_steps_count += 1
+            if max_steps_count > 100:
+                break
+        else:
+            max_steps_count = 0
         state = env.reset()
         # state_record = [np.array([state])]
         state_record = [np.array([state])]
@@ -136,14 +143,20 @@ def fit_nash():
                 action_attacker = torch.Tensor(
                     [policy_attacker.predict(state_record[-1].reshape(-1, 4))])[0]
             ac_v, ac_a = action_vehicle.numpy(), action_attacker.numpy()
+            # print('ac_v_pre', ac_v)
+            # print('ac_a_pre', ac_a)
             ac_v = ac_v / (sum(ac_v[0]) + 0.000000001)  # 4个权重和为1
             if sum(abs(ac_a[0])) > 1:
-                ac_a = ac_a / (sum(abs(ac_a[0])) + 0.000000001)  # 4个攻击绝对值和为1
+                ac_a = -1 * ac_a / (sum(ac_a[0]) + 0.000000001)  # 4个攻击绝对值和为1
+            # print('ac_a', ac_a)
             # ac_a = np.array([[-0.25, 0, -0.75, 0]])
             # ac_a = np.array([[0, 0, 0, -1.0]])
             _, next_state, reward, done = env.step(ac_v, ac_a)
             # print(ac_a, _)
             # print(done)
+            tra_distance.append(_)
+            tra_ac_veh.append(ac_v[0])
+            tra_ac_att.append(ac_a[0])
             state_record.append(next_state)
             local_steps += 1
             total_numsteps += 1
@@ -155,12 +168,12 @@ def fit_nash():
             mask = torch.Tensor([not done])
             prev_state = torch.Tensor(state_record[-65:]).transpose(0, 1)
             next_state = torch.Tensor([next_state])
-            reward_vehicle = torch.Tensor([reward])
-            reward_attacker = torch.Tensor([env.RC - reward])
+            reward_vehicle = torch.Tensor([env.RC - reward])
+            reward_attacker = torch.Tensor([reward])
             memory_vehicle.push(prev_state, action_vehicle, mask, next_state, reward_vehicle)
             memory_attacker.push(prev_state, action_attacker, mask, next_state, reward_attacker)
             if done:
-                rewards.append(episode_reward)
+                rewards.append(local_steps)
                 if i_episode % 10 == 0:
                     print('Episode {} ends, local_steps {}. total_steps {}, instant ave-reward is {:.4f}'.format(
                         i_episode, local_steps, total_numsteps, episode_reward))
@@ -247,8 +260,8 @@ def fit_nash():
                 # ac_a = np.array([[-0.25, 0, -0.75, 0]])
                 # ac_a = np.array([[0, 0, 0, -1.0]])
                 _, next_state, reward, done = env.step(ac_v, ac_a)
-                tra_ac_veh.append(ac_v[0])
-                tra_ac_att.append(ac_a[0])
+                eva_ac_veh.append(ac_v[0])
+                eva_ac_att.append(ac_a[0])
                 eva_distance.append(_)
                 state_record.append(next_state)
                 total_numsteps += 1
@@ -279,13 +292,16 @@ def fit_nash():
     df2 = pd.DataFrame()
     df2['Weight'] = pd.Series(tra_ac_veh)
     df2['Attack'] = pd.Series(tra_ac_att)
+    df2['Tra_distance'] = pd.Series(tra_distance)
+    df2['Eva_Weight'] = pd.Series(eva_ac_veh)
+    df2['Eva_Attack'] = pd.Series(eva_ac_att)
     df2['Eva_distance'] = pd.Series(eva_distance)
     dtime = time.strftime('%m%d', time.localtime(time.time()))
     df.to_csv(
-        './Result/reward_result_' + dtime + '_4beacon_RC' + str(env.RC) + '_' + str(args.num_episodes) + '_eva3.csv',
+        './Result/reward_result_' + dtime + '_4beacon_RC' + str(env.RC) + '_' + str(args.num_episodes) + '_eva.csv',
         index=None)
     df2.to_csv(
-        './Result/action_result_' + dtime + '_4beacon_RC' + str(env.RC) + '_' + str(args.num_episodes) + '_eva3.csv',
+        './Result/action_result_' + dtime + '_4beacon_RC' + str(env.RC) + '_' + str(args.num_episodes) + '_eva.csv',
         index=None)
     # np.savetxt('./Result/eva_result.csv', eva_reward, delimiter=',')
     # np.savetxt('./Result/ave_result.csv', ave_reward, delimiter=',')

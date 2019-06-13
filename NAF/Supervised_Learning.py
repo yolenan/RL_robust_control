@@ -10,6 +10,7 @@ def create_SL_model(state_shape, num_actions, mode):
         model.add(Activation('sigmoid'))
     elif mode == 'att':
         model.add(Dense(num_actions))
-        model.add(Activation('tanh'))
+        model.add(Activation('sigmoid'))
+        # model.add(Activation('tanh'))
     model.compile('Adam', 'mse')
     return model

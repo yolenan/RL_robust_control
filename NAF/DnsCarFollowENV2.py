@@ -197,12 +197,8 @@ class VehicleFollowingENV(object):
             reward = (delta_d - UPPER_BOUND) ** 2 / (UPPER_BOUND ** 2)
         elif self.reward_mode == 4:
             delta_v = abs(self.v_cal - self.v_head)
-            # print(self.v_cal, self.v_head)
-            if is_done:
-                reward = -1
-            else:
-                reward = np.clip(1 / (delta_v * 10 + 0.000001), 0, 1)
-
+            reward = delta_v
+            # reward = np.clip(1 / (delta_v * 10 + 0.000001), 0, 1)
         next_state = self.v_cal_raw
         # print(action_weight, action_attacker)
         return self.d, next_state, reward, is_done
