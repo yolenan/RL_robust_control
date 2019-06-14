@@ -121,7 +121,7 @@ def plotDistance(filename, k):
 def parseActionCSV(filename, action, k):
     data = pd.read_csv(filename)
     name = action
-    if name != 'Tva_distance':
+    if name != 'Eva_distance':
         data['w1'] = data[action].apply(lambda x: float(x.replace('[', '').replace(']', '').split()[0]))
         data['w2'] = data[action].apply(lambda x: float(x.replace('[', '').replace(']', '').split()[1]))
         try:
@@ -233,7 +233,7 @@ def ResolveDistance(filename, k):
     plt.title('Distance changes within one episode', fontsize=12)
 
 
-filename = 'action_result_0612_4beacon_RC0_20000_eva'
+filename = 'action_result_061304_4beacon_RC0_1000_eva_eta'
 actionfile = './Result/' + filename + '.csv'
 rewardfile = './Result/' + ''
 k = int(re.findall('_(\d*000)[_\.]', actionfile)[0])
@@ -256,13 +256,13 @@ def main():
     # ax.spines['right'].set_visible(False)
     try:
         plt.subplot(1, 3, 1)
-        parseActionCSV(actionfile, 'Tra_distance', k)
+        parseActionCSV(actionfile, 'Eva_distance', k)
     except:
         ResolveDistance(actionfile, k)
     plt.subplot(1, 3, 2)
-    parseActionCSV(actionfile, 'Weight', k // 10)
+    parseActionCSV(actionfile, 'Eva_Weight', k//10)
     plt.subplot(1, 3, 3)
-    parseActionCSV(actionfile, 'Attack', k // 10)
+    parseActionCSV(actionfile, 'Eva_Attack', k//10)
 
 
 if __name__ == '__main__':

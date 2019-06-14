@@ -28,7 +28,7 @@ def hard_update(target, source):
 
 class Policy(nn.Module):
 
-    def __init__(self, hidden_size, num_inputs, action_space, mode):
+    def __init__(self, hidden_size, batch_size, num_inputs, action_space, mode):
         super(Policy, self).__init__()
         self.action_space = action_space
         num_outputs = action_space
@@ -36,7 +36,7 @@ class Policy(nn.Module):
         # self.bn0.weight.data.fill_(1)
         # self.bn0.bias.data.fill_(0)
         self.mode = mode
-
+        self.batch_size = batch_size
         self.linear1 = nn.Linear(num_inputs, hidden_size)
         # self.emedbing=
         self.lstm = nn.LSTM(input_size=num_inputs, num_layers=2, hidden_size=hidden_size, batch_first=True)
@@ -69,21 +69,33 @@ class Policy(nn.Module):
         if is_cuda:
             self.tril_mask = self.tril_mask.cuda()
             self.diag_mask = self.diag_mask.cuda()
-        self.hidden = self.init_hidden()
+        self.hidden_run = self.init_hidden_run()
+        self.hidden_up = self.init_hidden_up()
 
-    def init_hidden(self):
+    def init_hidden_run(self):
         if is_cuda:
-            return (autograd.Variable(torch.zeros(1, 1, self.hidden_dim).cuda()),
-                    autograd.Variable(torch.zeros(1, 1, self.hidden_dim)).cuda())
+            return (autograd.Variable(torch.randn(2, 1, self.hidden_dim).cuda()),
+                    autograd.Variable(torch.randn(2, 1, self.hidden_dim)).cuda())
         else:
-            return (autograd.Variable(torch.zeros(1, 1, self.hidden_dim)),
-                    autograd.Variable(torch.zeros(1, 1, self.hidden_dim)))
+            return (autograd.Variable(torch.zeros(2, 1, self.hidden_dim)),
+                    autograd.Variable(torch.zeros(2, 1, self.hidden_dim)))
 
-    def forward(self, inputs):
+    def init_hidden_up(self):
+        if is_cuda:
+            return (autograd.Variable(torch.randn(2, self.batch_size, self.hidden_dim).cuda()),
+                    autograd.Variable(torch.randn(2, self.batch_size, self.hidden_dim)).cuda())
+        else:
+            return (autograd.Variable(torch.zeros(2, self.batch_size, self.hidden_dim)),
+                    autograd.Variable(torch.zeros(2, self.batch_size, self.hidden_dim)))
+
+    def forward(self, inputs, mode):
         x, u = inputs
         # x = self.bn0(x)
-        # x, self.hidden = self.lstm(x, self.hidden)
-        x, _ = self.lstm(x)
+        if mode == 'run':
+            x, self.hidden_run = self.lstm(x, self.hidden_run)
+        elif mode == 'up':
+            x, self.hidden_up = self.lstm(x, self.hidden_up)
+        # x, _ = self.lstm(x)
         # print(x.shape)
         x = torch.tanh(x[:, -1, :].unsqueeze(0))
         # x = F.tanh(self.linear2(x))
@@ -113,12 +125,12 @@ class Policy(nn.Module):
 
 class NAF:
 
-    def __init__(self, gamma, tau, hidden_size, num_inputs, action_space, mode):
+    def __init__(self, gamma, tau, hidden_size, batch_size, num_inputs, action_space, mode):
         self.action_space = action_space
         self.num_inputs = num_inputs
         self.mode = mode
-        self.model = Policy(hidden_size, num_inputs, action_space, mode)
-        self.target_model = Policy(hidden_size, num_inputs, action_space, mode)
+        self.model = Policy(hidden_size, batch_size, num_inputs, action_space, mode)
+        self.target_model = Policy(hidden_size, batch_size, num_inputs, action_space, mode)
         self.optimizer = Adam(self.model.parameters(), lr=1e-3)
         self.gamma = gamma
         self.tau = tau
@@ -132,6 +144,7 @@ class NAF:
     def select_action(self, state, action_noise=None, param_noise=None):
         self.model.eval()
         # print(Variable(state))
+        state = state.transpose(0, 1)
         if is_cuda:
             V_s = Variable(state).cuda()
             if action_noise is not None:
@@ -140,7 +153,7 @@ class NAF:
             V_s = Variable(state)
             if action_noise is not None:
                 ac_noise = torch.Tensor(action_noise.noise())
-        mu, _, _ = self.model((V_s, None))
+        mu, _, _ = self.model((V_s, None), mode='run')
         self.model.train()
         mu = mu.data
         # print(mu.data, 'mu')
@@ -172,13 +185,13 @@ class NAF:
         # print('state shape', state_batch.shape)
         # print('next state shape', next_state_batch.shape)
         # print('action shape', action_batch.shape)
-        _, _, next_state_values = self.target_model((next_state_batch, None))
+        _, _, next_state_values = self.target_model((next_state_batch, None), mode='up')
 
         reward_batch = reward_batch.unsqueeze(1)
         mask_batch = mask_batch.unsqueeze(1)
         expected_state_action_values = reward_batch + (self.gamma * mask_batch + next_state_values)
 
-        _, state_action_values, _ = self.model((state_batch, action_batch))
+        _, state_action_values, _ = self.model((state_batch, action_batch), mode='up')
 
         loss = MSELoss(state_action_values, expected_state_action_values)
 

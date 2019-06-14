@@ -12,6 +12,7 @@ from param_noise import AdaptiveParamNoiseSpec, ddpg_distance_metric
 import argparse
 import os
 import time
+import math
 import pandas as pd
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -36,13 +37,13 @@ parser.add_argument('--exploration_end', type=int, default=100, metavar='N',
                     help='number of episodes with noise (default: 100)')
 parser.add_argument('--seed', type=int, default=4, metavar='N',
                     help='random seed (default: 4)')
-parser.add_argument('--batch_size', type=int, default=512, metavar='N',
+parser.add_argument('--batch_size', type=int, default=64, metavar='N',
                     help='batch size (default: 128)')
 parser.add_argument('--num_steps', type=int, default=100000, metavar='N',
                     help='max episode length (default: 1000)')
-parser.add_argument('--num_episodes', type=int, default=20000, metavar='N',
+parser.add_argument('--num_episodes', type=int, default=1000, metavar='N',
                     help='number of episodes (default: 1000)')
-parser.add_argument('--hidden_size', type=int, default=128, metavar='N',
+parser.add_argument('--hidden_size', type=int, default=64, metavar='N',
                     help='number of episodes (default: 128)')
 parser.add_argument('--updates_per_step', type=int, default=5, metavar='N',
                     help='model updates per simulator step (default: 5)')
@@ -65,12 +66,13 @@ The total episode is             {}
 
 
 ETA = 0.5
+Step_input = 10
 
 
 def fit_nash():
-    agent_vehicle = NAF(args.gamma, args.tau, args.hidden_size,
+    agent_vehicle = NAF(args.gamma, args.tau, args.hidden_size, args.batch_size,
                         env.observation_space, env.vehicle_action_space, mode='veh')
-    agent_attacker = NAF(args.gamma, args.tau, args.hidden_size,
+    agent_attacker = NAF(args.gamma, args.tau, args.hidden_size, args.batch_size,
                          env.observation_space, env.attacker_action_space, mode='att')
 
     policy_vehicle = create_SL_model(env.observation_space, env.vehicle_action_space, mode='veh')
@@ -98,11 +100,9 @@ def fit_nash():
     tra_distance = []
     tra_ac_veh = []
     tra_ac_att = []
-    All_reward = []
     eva_distance = []
     eva_ac_veh = []
     eva_ac_att = []
-    All_reward = []
     total_numsteps = 0
     updates = 0
     local_steps = 0
@@ -117,7 +117,7 @@ def fit_nash():
         state = env.reset()
         # state_record = [np.array([state])]
         state_record = [np.array([state])]
-        while len(state_record) < 65:
+        while len(state_record) < Step_input:
             d, s, _, done = env.step()
             if done:
                 s = np.array([env.reset()])
@@ -133,9 +133,11 @@ def fit_nash():
         local_steps = 0
         while True:
             if random.random() < ETA:
-                action_vehicle = agent_vehicle.select_action(torch.Tensor(state_record[-65:]), ounoise_vehicle,
+                action_vehicle = agent_vehicle.select_action(torch.Tensor(state_record[-1 * Step_input:]),
+                                                             ounoise_vehicle,
                                                              param_noise_vehicle)[:, -1, :]
-                action_attacker = agent_attacker.select_action(torch.Tensor(state_record[-65:]), ounoise_attacker,
+                action_attacker = agent_attacker.select_action(torch.Tensor(state_record[-1 * Step_input:]),
+                                                               ounoise_attacker,
                                                                param_noise_attacker)[:, -1, :]
             else:
                 action_vehicle = torch.Tensor(
@@ -166,8 +168,10 @@ def fit_nash():
             action_vehicle = torch.Tensor(action_vehicle)
             action_attacker = torch.Tensor(action_attacker)
             mask = torch.Tensor([not done])
-            prev_state = torch.Tensor(state_record[-65:]).transpose(0, 1)
-            next_state = torch.Tensor([next_state])
+            prev_state = torch.Tensor(state_record[-1 * Step_input:]).transpose(0, 1)
+            tmp_next_state = state_record[-1 * Step_input + 1:]
+            tmp_next_state.append(next_state)
+            next_state = torch.Tensor(tmp_next_state).transpose(0, 1)
             reward_vehicle = torch.Tensor([env.RC - reward])
             reward_attacker = torch.Tensor([reward])
             memory_vehicle.push(prev_state, action_vehicle, mask, next_state, reward_vehicle)
@@ -214,6 +218,9 @@ def fit_nash():
                 policy_attacker.fit(states_att, actions_att, verbose=False)
                 value_loss_vehicle, policy_loss_vehicle = agent_vehicle.update_parameters(batch_vehicle)
                 value_loss_attacker, policy_loss_attacker = agent_attacker.update_parameters(batch_attacker)
+                if i_episode % 10 == 0:
+                    print('Episode {} ends, train {} times. vehicle loss {:.4f}, attacker loss {:.4f}'.format(
+                        i_episode, _, value_loss_vehicle, value_loss_attacker))
 
                 # writer.add_scalar('loss/value', value_loss, updates)
                 # writer.add_scalar('loss/policy', policy_loss, updates)
@@ -235,16 +242,18 @@ def fit_nash():
             while True:
                 # la = np.random.randint(0, len(state_record) - 20, 1)[0]
                 # attack = np.random.randn(4) * ATTACKER_LIMIT
-                a0 = np.random.uniform(-0.25, 0)
+                # attack = np.clip(math.e ** (-0.01 * i_episode) * (math.sin(i_episode) * np.ones(4) + np.random.randn(4)),
+                #                  0, 1)
+                a0 = np.random.uniform(0, 0.25)
                 a1 = 0
-                a2 = np.random.uniform(-0.75, -0.5)
+                a2 = np.random.uniform(0.5, 0.75)
                 a3 = 0
                 attack = np.array([a0, a1, a2, a3])
                 if sum(abs(attack)) > 1:
                     attack = attack / sum(abs(attack))
                 ac_a = np.array([attack])
                 if random.random() < ETA:
-                    action_vehicle = agent_vehicle.select_action(torch.Tensor(state_record[-65:]))[:, -1, :]
+                    action_vehicle = agent_vehicle.select_action(torch.Tensor(state_record[-1 * Step_input:]))[:, -1, :]
                     # action_attacker = agent_attacker.select_action(torch.Tensor(state_record[-65:]),
                     #                                                ounoise_attacker,
                     #                                                param_noise_attacker)[:, -1, :]
@@ -277,7 +286,7 @@ def fit_nash():
                             i_episode / args.num_episodes * 100,
                             total_numsteps,
                             eva_steps,
-                            evaluate_reward,
+                            eva_steps,
                             average_reward))
                     eva_reward.append(evaluate_reward)
                     ave_reward.append(average_reward)
@@ -290,18 +299,18 @@ def fit_nash():
     df['Eva'] = pd.Series(eva_reward)
     df['Tra'] = pd.Series(ave_reward)
     df2 = pd.DataFrame()
-    df2['Weight'] = pd.Series(tra_ac_veh)
-    df2['Attack'] = pd.Series(tra_ac_att)
+    df2['Tra_Weight'] = pd.Series(tra_ac_veh)
+    df2['Tra_Attack'] = pd.Series(tra_ac_att)
     df2['Tra_distance'] = pd.Series(tra_distance)
     df2['Eva_Weight'] = pd.Series(eva_ac_veh)
     df2['Eva_Attack'] = pd.Series(eva_ac_att)
     df2['Eva_distance'] = pd.Series(eva_distance)
     dtime = time.strftime('%m%d', time.localtime(time.time()))
     df.to_csv(
-        './Result/reward_result_' + dtime + '_4beacon_RC' + str(env.RC) + '_' + str(args.num_episodes) + '_eva.csv',
+        './Result/reward_result_' + dtime + '_4beacon_RC' + str(env.RC) + '_' + str(args.num_episodes) + '_eva4.csv',
         index=None)
     df2.to_csv(
-        './Result/action_result_' + dtime + '_4beacon_RC' + str(env.RC) + '_' + str(args.num_episodes) + '_eva.csv',
+        './Result/action_result_' + dtime + '_4beacon_RC' + str(env.RC) + '_' + str(args.num_episodes) + '_eva4.csv',
         index=None)
     # np.savetxt('./Result/eva_result.csv', eva_reward, delimiter=',')
     # np.savetxt('./Result/ave_result.csv', ave_reward, delimiter=',')
