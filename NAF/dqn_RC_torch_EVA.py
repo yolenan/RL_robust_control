@@ -40,7 +40,7 @@ parser.add_argument('--batch_size', type=int, default=512, metavar='N',
                     help='batch size (default: 128)')
 parser.add_argument('--num_steps', type=int, default=100000, metavar='N',
                     help='max episode length (default: 1000)')
-parser.add_argument('--num_episodes', type=int, default=20000, metavar='N',
+parser.add_argument('--num_episodes', type=int, default=1000, metavar='N',
                     help='number of episodes (default: 1000)')
 parser.add_argument('--hidden_size', type=int, default=128, metavar='N',
                     help='number of episodes (default: 128)')
@@ -61,11 +61,9 @@ The attack mode is               {}
 The reward mode is               {}
 The total episode is             {}
 """.format(env.v_head, env.d0, env.RC, env.defend_mode, env.attack_mode, env.reward_mode, args.num_episodes))
+
+
 # writer = SummaryWriter()
-
-
-ETA = 0.5
-
 
 def fit_nash():
     agent_vehicle = NAF(args.gamma, args.tau, args.hidden_size,
@@ -98,16 +96,17 @@ def fit_nash():
     tra_distance = []
     tra_ac_veh = []
     tra_ac_att = []
-    All_reward = []
     eva_distance = []
     eva_ac_veh = []
     eva_ac_att = []
-    All_reward = []
     total_numsteps = 0
     updates = 0
     local_steps = 0
+    veh_loss_record = []
+    att_loss_record = []
     max_steps_count = 0
     for i_episode in range(args.num_episodes):
+        ETA = 1 / (i_episode+1)
         if local_steps > 1900:
             max_steps_count += 1
             if max_steps_count > 100:
@@ -143,11 +142,9 @@ def fit_nash():
                 action_attacker = torch.Tensor(
                     [policy_attacker.predict(state_record[-1].reshape(-1, 4))])[0]
             ac_v, ac_a = action_vehicle.numpy(), action_attacker.numpy()
-            # print('ac_v_pre', ac_v)
-            # print('ac_a_pre', ac_a)
             ac_v = ac_v / (sum(ac_v[0]) + 0.000000001)  # 4个权重和为1
             if sum(abs(ac_a[0])) > 1:
-                ac_a = -1 * ac_a / (sum(ac_a[0]) + 0.000000001)  # 4个攻击绝对值和为1
+                ac_a = ac_a / (sum(ac_a[0]) + 0.000000001)  # 4个攻击绝对值和为1
             # print('ac_a', ac_a)
             # ac_a = np.array([[-0.25, 0, -0.75, 0]])
             # ac_a = np.array([[0, 0, 0, -1.0]])
@@ -178,7 +175,8 @@ def fit_nash():
                     print('Episode {} ends, local_steps {}. total_steps {}, instant ave-reward is {:.4f}'.format(
                         i_episode, local_steps, total_numsteps, episode_reward))
                 break
-
+        episode_update_loss_veh = []
+        episode_update_loss_att = []
         if len(memory_vehicle) > args.batch_size:  # 开始训练
             # print('begin training')
             for _ in range(args.updates_per_step):
@@ -214,11 +212,17 @@ def fit_nash():
                 policy_attacker.fit(states_att, actions_att, verbose=False)
                 value_loss_vehicle, policy_loss_vehicle = agent_vehicle.update_parameters(batch_vehicle)
                 value_loss_attacker, policy_loss_attacker = agent_attacker.update_parameters(batch_attacker)
-
+                if i_episode % 10 == 0 and _ == args.updates_per_step - 1:
+                    print('Episode {} ends, update {} times,vehicle loss is {:.4f},attacker loss is {:.4f}'.format(
+                        i_episode, _, value_loss_vehicle, value_loss_attacker))
+                episode_update_loss_veh.append(value_loss_vehicle)
+                episode_update_loss_att.append(value_loss_attacker)
                 # writer.add_scalar('loss/value', value_loss, updates)
                 # writer.add_scalar('loss/policy', policy_loss, updates)
 
                 updates += 1
+        veh_loss_record.append(np.average(episode_update_loss_veh))
+        att_loss_record.append(np.average(episode_update_loss_att))
 
         if i_episode % 10 == 0 and i_episode > 0:
             state = env.reset()
@@ -290,18 +294,24 @@ def fit_nash():
     df['Eva'] = pd.Series(eva_reward)
     df['Tra'] = pd.Series(ave_reward)
     df2 = pd.DataFrame()
-    df2['Weight'] = pd.Series(tra_ac_veh)
-    df2['Attack'] = pd.Series(tra_ac_att)
+    df2['Tra_Weight'] = pd.Series(tra_ac_veh)
+    df2['Tra_Attack'] = pd.Series(tra_ac_att)
     df2['Tra_distance'] = pd.Series(tra_distance)
     df2['Eva_Weight'] = pd.Series(eva_ac_veh)
     df2['Eva_Attack'] = pd.Series(eva_ac_att)
     df2['Eva_distance'] = pd.Series(eva_distance)
-    dtime = time.strftime('%m%d', time.localtime(time.time()))
+    df3 = pd.DataFrame()
+    df3['Veh_loss'] = pd.Series(veh_loss_record)
+    df3['Att_loss'] = pd.Series(att_loss_record)
+    dtime = time.strftime('%m%d%H', time.localtime(time.time()))
     df.to_csv(
-        './Result/reward_result_' + dtime + '_4beacon_RC' + str(env.RC) + '_' + str(args.num_episodes) + '_eva.csv',
+        './Result/reward_result_' + dtime + '_4beacon_RC' + str(env.RC) + '_' + str(args.num_episodes) + '_eva_eta.csv',
         index=None)
     df2.to_csv(
-        './Result/action_result_' + dtime + '_4beacon_RC' + str(env.RC) + '_' + str(args.num_episodes) + '_eva.csv',
+        './Result/action_result_' + dtime + '_4beacon_RC' + str(env.RC) + '_' + str(args.num_episodes) + '_eva_eta.csv',
+        index=None)
+    df3.to_csv(
+        './Result/loss_result_' + dtime + '_4beacon_RC' + str(env.RC) + '_' + str(args.num_episodes) + '_eva_eta.csv',
         index=None)
     # np.savetxt('./Result/eva_result.csv', eva_reward, delimiter=',')
     # np.savetxt('./Result/ave_result.csv', ave_reward, delimiter=',')

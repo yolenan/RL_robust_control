@@ -233,7 +233,7 @@ def ResolveDistance(filename, k):
     plt.title('Distance changes within one episode', fontsize=12)
 
 
-filename = 'action_result_0612_4beacon_RC0_20000_eva'
+filename = 'action_result_061302_4beacon_RC0_1000_eva'
 actionfile = './Result/' + filename + '.csv'
 rewardfile = './Result/' + ''
 k = int(re.findall('_(\d*000)[_\.]', actionfile)[0])
@@ -256,7 +256,7 @@ def main():
     # ax.spines['right'].set_visible(False)
     try:
         plt.subplot(1, 3, 1)
-        parseActionCSV(actionfile, 'Tra_distance', k)
+        parseActionCSV(actionfile, 'Eva_distance', k)
     except:
         ResolveDistance(actionfile, k)
     plt.subplot(1, 3, 2)

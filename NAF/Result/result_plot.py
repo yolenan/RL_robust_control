@@ -8,17 +8,23 @@ def plot_result(mode='result', title='Adversary Learning Result'):
     # df1 = pd.read_csv('reward_result_0608_4bacon_RC0_10000_eva.csv')
     # df2= pd.read_csv('reward_result_0608_4bacon_RC1_10000_eva.csv')
     # df3 = pd.read_csv('reward_result_0608_4bacon_RC5_10000_eva.csv')
-    filename = 'reward_result_0612_4beacon_RC0_20000_eva'
-    df4 = pd.read_csv(filename + '.csv')
-    title = filename
+    filename = '_result_061302_4beacon_RC0_1000_eva'
+    # df4 = pd.read_csv(filename + '.csv')
+    # title = filename
     # df5 = pd.read_csv('reward_result_0608_4bacon_RC50_10000_eva.csv')
     # df6 = pd.read_csv('reward_result_0608_4bacon_RC100_10000_eva.csv')
     # df = pd.read_csv('reward_result_0608_4bacon_5000.csv')
     # df2 = pd.read_csv('reward_result_0608_4bacon_RC50_1000.csv')
     # df3 = pd.read_csv('reward_result_0608_4bacon_RC100_1000.csv')
     if mode == 'result':
+        rewardfile = 'reward' + filename
+        title = rewardfile
+        df4 = pd.read_csv(rewardfile + '.csv')
         plt.plot(df4['Reward'][1:], label='Train')
     elif mode == 'evaluate':
+        rewardfile = 'reward' + filename
+        title = rewardfile
+        df4 = pd.read_csv(rewardfile + '.csv')
         # plt.plot(df['Eva'], label='4beacon-Evaluate-RC1')
         # plt.plot(df1['Tra'], label='4beacon-Train-RC0')
         # plt.plot(df2['Tra'], label='4beacon-Train-RC1')
@@ -30,11 +36,17 @@ def plot_result(mode='result', title='Adversary Learning Result'):
         # plt.plot(df2['Tra'], label='4bacon-Train-RC50')
         # plt.plot(df3['Eva'], label='4bacon-Evaluate-RC100')
         # plt.plot(df3['Tra'], label='4bacon-Train-RC100')
+    elif mode == 'loss':
+        lossfile = 'loss' + filename
+        title = lossfile
+        df4 = pd.read_csv(lossfile + '.csv')[10:]
+        plt.plot(df4['Veh_loss'], label='Vehicle_loss')
+        plt.plot(df4['Att_loss'], label='Attacker_loss')
     plt.legend()
     plt.xlabel('Episode')
     plt.ylabel('Episode reward')
     plt.title(title)
-    plt.savefig('./figure_plot/'+title + '.png', dpi=300)
+    plt.savefig('./figure_plot/' + title + '.png', dpi=300)
     plt.show()
 
 
@@ -55,4 +67,5 @@ def plot_action(mode='veh'):
 
 # plot_result(mode='evaluate')
 plot_result()
+# plot_result(mode='loss')
 # plot_action()

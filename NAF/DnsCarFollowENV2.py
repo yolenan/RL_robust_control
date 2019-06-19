@@ -205,13 +205,14 @@ class VehicleFollowingENV(object):
 
     def random_action(self):
         weight = np.random.random(4)
+        # weight = np.ones(4)
         weight = weight / weight.sum()
         # attack = np.random.random(4)
-        a0 = np.random.uniform(-0.25, 0)
+        a0 = np.random.uniform(0, 0.25)
         a1 = 0
         a3 = 0
         # a1 = np.random.uniform(-0.5, -0.25)
-        a2 = np.random.uniform(-0.75, -0.5)
+        a2 = np.random.uniform(0.5, 0.75)
         # a3 = np.random.uniform(-1, -0.75)
         # attack = np.random.randn(4) * ATTACKER_LIMIT
         attack = np.array([a0, a1, a2, a3])
