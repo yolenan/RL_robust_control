@@ -2,7 +2,7 @@
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import numpy as np
-
+#1
 
 class Sample:
     """Represents a reinforcement learning sample.
